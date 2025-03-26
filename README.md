@@ -1,1 +1,1 @@
-# ai-snake
+# snake-web
