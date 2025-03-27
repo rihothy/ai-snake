@@ -16,7 +16,7 @@ let agent;
 let foodManager;
 let effectManager;
 
-const loadModelPath = 'indexeddb://ai-snake-model';
+const loadModelPath = 'https://raw.githubusercontent.com/rihothy/ai-snake/main/model/model.json';
 const saveModelPath = '';
 
 function checkPositionOccupied(x, y) {
