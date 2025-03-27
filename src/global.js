@@ -4,7 +4,7 @@ let gridHeight = 32;
 
 const gameplayInterval = 150;
 const runMode = 'client';
-let timeDilation = 5;
+let timeDilation = 1;
 
 const foodColor = 'rgb(156, 39, 176)';
 const playerColor = 'rgb(76, 175, 80)';
