@@ -24,16 +24,15 @@ class ExperienceReplay {
 }
 
 class DQNAgent {
-    constructor(savePath) {
+    constructor() {
         this.gamma = 0.95;
-        this.viewSize = 21;
+        this.viewSize = 23;
         this.epsilon = 1.0;
         this.actionSize = 4;
         this.epsilonMin = 0.01;
-        this.epsilonDecay = 0.995;
+        this.epsilonDecay = 0.9975;
         this.memory = new ExperienceReplay();
 
-        this.savePath = savePath;
         this.model = this.createModel();
         this.targetModel = this.createModel();
         this.targetModel.setWeights(this.model.getWeights());
@@ -42,13 +41,15 @@ class DQNAgent {
     createModel() {
         let model = tf.sequential();
 
-        model.add(tf.layers.conv2d({filters: 32, kernelSize: 3, activation: 'relu', padding: 'same', inputShape: [this.viewSize, this.viewSize, 5]}));
-        model.add(tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, activation: 'relu'}));
+        model.add(tf.layers.conv2d({filters: 32, kernelSize: 3, padding: 'same', activation: 'relu', inputShape: [this.viewSize, this.viewSize, 5]}));
+        model.add(tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}));
         model.add(tf.layers.conv2d({filters: 64, kernelSize: 3, padding: 'same', activation: 'relu'}));
-        model.add(tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, activation: 'relu'}));
-        model.add(tf.layers.conv2d({filters: 128, kernelSize: 4, activation: 'relu'}));
+        model.add(tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}));
+        model.add(tf.layers.conv2d({filters: 64, kernelSize: 3, padding: 'same', activation: 'relu'}));
+        model.add(tf.layers.conv2d({filters: 128, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}));
+        model.add(tf.layers.conv2d({filters: 128, kernelSize: 3, activation: 'relu'}));
         model.add(tf.layers.flatten());
-        model.add(tf.layers.dense({units: 256, activation: 'relu'}));
+        model.add(tf.layers.dense({units: 128, activation: 'relu'}));
         model.add(tf.layers.dense({units: this.actionSize, activation: 'linear'}));
 
         model.compile({optimizer: tf.train.adam(0.001), loss: 'meanSquaredError'});
@@ -117,7 +118,7 @@ class DQNAgent {
         });
     }
 
-    async train(sampleSize = 2048, batchSize = 32) {
+    async train(sampleSize = 1024, batchSize = 32) {
         if (this.memory.memories.length < sampleSize) {
             return;
         }
@@ -146,12 +147,11 @@ class DQNAgent {
 
         await this.model.fit(stateTensor, targetTensor, {epochs: 1, batchSize});
 
-        if (this.savePath) {
-            await this.model.save(this.savePath);
+        if (saveModelPath) {
+            await this.model.save(saveModelPath);
         }
 
         tf.dispose([stateTensor, nextStateTensor, targetQ, currentQ, targetTensor]);
         this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
-        this.targetModel.setWeights(this.model.getWeights());
     }
 }

@@ -1,3 +1,6 @@
+const deadReasons = [];
+const deadLengths = [];
+
 class Snake {
     constructor(color, isPlayer = false, x = undefined, y = undefined) {
         while (!isPlayer) {
@@ -11,7 +14,11 @@ class Snake {
 
         this.direction = this.nextDirection = 'right';
         this.body = [{x, y}, {x, y}, {x, y}];
+        this.collideSnake = false;
+        this.collideSelf = false;
         this.isPlayer = isPlayer;
+        this.collideWall = false;
+        this.survivalCount = 0;
         this.color = color;
         this.foodCount = 0;
         this.alive = true;
@@ -24,6 +31,10 @@ class Snake {
     }
 
     setDirection(newDirection) {
+        this.collideSnake = false;
+        this.collideSelf = false;
+        this.collideWall = false;
+        this.survivalCount++;
         this.ate = false;
 
         if (!(newDirection == 'up' && this.direction == 'down' || newDirection == 'down' && this.direction == 'up' || newDirection == 'left' && this.direction == 'right' || newDirection == 'right' && this.direction == 'left')) {
@@ -65,13 +76,25 @@ class Snake {
     checkCollision() {
         const head = this.body[0];
 
+        while (deadReasons.length > 500) {
+            deadReasons.shift();
+            deadLengths.shift();
+        }
+
         if (head.x < 0 || head.x >= gridWidth || head.y < 0 || head.y >= gridHeight) {
+            deadLengths.push(this.body.length);
+            this.collideWall = true;
             this.alive = false;
+            deadReasons.push(0);
+            return;
         }
 
         for (let i = 1; i < this.body.length; i++) {
             if (head.x === this.body[i].x && head.y === this.body[i].y) {
+                deadLengths.push(this.body.length);
+                this.collideSelf = true;
                 this.alive = false;
+                deadReasons.push(1);
                 return;
             }
         }
@@ -80,7 +103,10 @@ class Snake {
             if (snake !== this) {
                 for (let segment of snake.body) {
                     if (head.x === segment.x && head.y === segment.y) {
+                        deadLengths.push(this.body.length);
+                        this.collideSnake = true;
                         this.alive = false;
+                        deadReasons.push(2);
                         return;
                     }
                 }

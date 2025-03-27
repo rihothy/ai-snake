@@ -1,5 +1,7 @@
 window.addEventListener('load', (ev) => {
-    return;
+    if (runMode !== 'worker') {
+        return;
+    }
 
     const canvas = document.getElementById('gameCanvas');
     const worker = new Worker('worker/index.js');
@@ -37,7 +39,9 @@ window.addEventListener('load', (ev) => {
 });
 
 window.addEventListener('load', async (ev) => {
-    // return;
+    if (runMode !== 'client') {
+        return;
+    }
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -62,9 +66,14 @@ window.addEventListener('load', async (ev) => {
         snakes.push(new Snake(color));
     }
 
-    agent.model = await tf.loadLayersModel('https://raw.githubusercontent.com/rihothy/ai-snake/main/model/model.json');
-    this.gameplayDeltaTime = 0;
+    if (loadModelPath) {
+        agent.model = await tf.loadLayersModel(loadModelPath);
+    }
+
     agent.model.summary();
+    this.gameplayDeltaTime = 0;
+
+    document.oncontextmenu = () => false;
 
     document.addEventListener('keydown', (ev) => {
         if (snakes.length && snakes[0].isPlayer) {
@@ -73,6 +82,40 @@ window.addEventListener('load', async (ev) => {
                 case 'ArrowDown': case 's': snakes[0].setDirection('down'); break;
                 case 'ArrowLeft': case 'a': snakes[0].setDirection('left'); break;
                 case 'ArrowRight': case'd': snakes[0].setDirection('right'); break;
+            }
+        }
+    });
+
+    let touchStartTime = 0;
+
+    document.addEventListener('touchstart', (ev) => {
+        touchStartTime = performance.now();
+    });
+
+    document.addEventListener('touchend', (ev) => {
+        let x = ev.changedTouches[0].clientX;
+        let y = ev.changedTouches[0].clientY;
+
+        if (performance.now() - touchStartTime > 500) {
+            const speed = parseFloat(prompt('change game speed'));
+
+            if (speed && speed > 0) {
+                timeDilation = speed;
+            }
+        } else if (snakes.length && snakes[0].isPlayer) {
+            if (snakes[0].direction == 'right' || snakes[0].direction == 'left') {
+                if (y < canvas.height / 2) snakes[0].setDirection('up');
+                else snakes[0].setDirection('down');
+            } else if (snakes[0].direction == 'up' || snakes[0].direction == 'down') {
+                if (x < canvas.width / 2) snakes[0].setDirection('left');
+                else snakes[0].setDirection('right');
+            }
+        } else {
+            x = Math.floor(Math.max(0, Math.min(gridWidth - 1, x / gridSize)));
+            y = Math.floor(Math.max(0, Math.min(gridHeight - 1, y / gridSize)));
+
+            if ((snakes.length == 0 || !snakes[0].isPlayer) && !checkPositionOccupied(x, y)) {
+                snakes.unshift(new Snake(playerColor, true, x, y));
             }
         }
     });
@@ -86,12 +129,17 @@ window.addEventListener('load', async (ev) => {
         }
     });
 
-    let lastTimestamp = performance.now() * timeDilation;
+    let lastTimestamp = performance.now();
     let gameplayDeltaTime = 0;
     let tick = (timestamp) => {
-        let deltaTime = timestamp  * timeDilation - lastTimestamp;
+        if (timestamp - lastTimestamp > 2000) {
+            lastTimestamp = timestamp - gameplayInterval;
+        }
+
+        const deltaTime = (timestamp - lastTimestamp) * timeDilation;
 
         gameplayDeltaTime += deltaTime;
+        lastTimestamp = timestamp;
 
         while (gameplayDeltaTime >= gameplayInterval) {
             gameplayDeltaTime -= gameplayInterval;
@@ -153,7 +201,6 @@ window.addEventListener('load', async (ev) => {
         snakes.forEach(snake => snake.render(ctx));
         effectManager.render(ctx);
 
-        lastTimestamp = timestamp  * timeDilation;
         requestAnimationFrame(tick);
     };
 

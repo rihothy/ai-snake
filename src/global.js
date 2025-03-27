@@ -3,7 +3,8 @@ let gridWidth = 32;
 let gridHeight = 32;
 
 const gameplayInterval = 150;
-const timeDilation = 2;
+const runMode = 'client';
+let timeDilation = 5;
 
 const foodColor = 'rgb(156, 39, 176)';
 const playerColor = 'rgb(76, 175, 80)';
@@ -14,6 +15,9 @@ const snakes = [];
 let agent;
 let foodManager;
 let effectManager;
+
+const loadModelPath = 'indexeddb://ai-snake-model';
+const saveModelPath = '';
 
 function checkPositionOccupied(x, y) {
     return snakes.some(snake => snake.alive && snake.body.some(segment => segment.x === x && segment.y === y)) || foodManager.foods.some(food => food.x === x && food.y == y);
