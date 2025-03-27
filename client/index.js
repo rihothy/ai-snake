@@ -35,7 +35,7 @@ window.addEventListener('load', (ev) => {
         foods = ev.data.foods;
     }
 
-    requestAnimationFrame(render);
+    // requestAnimationFrame(render);
 });
 
 window.addEventListener('load', async (ev) => {

@@ -1,5 +1,20 @@
-const deadReasons = [];
-const deadLengths = [];
+const deadInfos = [];
+
+function metric(iter, epsilon) {
+    let wallCnt = 0, selfCnt = 0, snakeCnt = 0;
+    let length = 0, count = 0;
+
+    for (const info of deadInfos) {
+        if (info[0] == 0) wallCnt++;
+        if (info[0] == 1) selfCnt++;
+        if (info[0] == 2) snakeCnt++;
+
+        length += info[1];
+        count += info[2];
+    }
+
+    console.log(`[iter: ${iter}] [epsilon: ${epsilon.toFixed(2)}] [length: ${(length / deadInfos.length).toFixed(2)}] [count: ${(count / deadInfos.length).toFixed(2)}] [collide wall: ${(wallCnt / deadInfos.length * 100).toFixed(2)}%] [collide self: ${(selfCnt / deadInfos.length * 100).toFixed(2)}%] [collide snake: ${(snakeCnt / deadInfos.length * 100).toFixed(2)}%]`);
+}
 
 class Snake {
     constructor(color, isPlayer = false, x = undefined, y = undefined) {
@@ -76,25 +91,22 @@ class Snake {
     checkCollision() {
         const head = this.body[0];
 
-        while (deadReasons.length > 500) {
-            deadReasons.shift();
-            deadLengths.shift();
+        while (deadInfos.length > 500) {
+            deadInfos.shift();
         }
 
         if (head.x < 0 || head.x >= gridWidth || head.y < 0 || head.y >= gridHeight) {
-            deadLengths.push(this.body.length);
+            deadInfos.push([0, this.body.length, this.survivalCount]);
             this.collideWall = true;
             this.alive = false;
-            deadReasons.push(0);
             return;
         }
 
         for (let i = 1; i < this.body.length; i++) {
             if (head.x === this.body[i].x && head.y === this.body[i].y) {
-                deadLengths.push(this.body.length);
+                deadInfos.push([1, this.body.length, this.survivalCount]);
                 this.collideSelf = true;
                 this.alive = false;
-                deadReasons.push(1);
                 return;
             }
         }
@@ -103,10 +115,9 @@ class Snake {
             if (snake !== this) {
                 for (let segment of snake.body) {
                     if (head.x === segment.x && head.y === segment.y) {
-                        deadLengths.push(this.body.length);
+                        deadInfos.push([2, this.body.length, this.survivalCount]);
                         this.collideSnake = true;
                         this.alive = false;
-                        deadReasons.push(2);
                         return;
                     }
                 }

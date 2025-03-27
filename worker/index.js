@@ -21,13 +21,26 @@ class SnakeAI {
     memory() {
         let nextState = agent.getState(this.snake, foodManager.foods, snakes);
         let reward = -0.1;
+        let type = 0;
 
-        if (this.snake.ate) reward += 2;
-        if (this.snake.collideWall) reward = -2;
-        if (this.snake.collideSelf) reward = -2;
-        if (this.snake.collideSnake) reward = -2;
+        if (this.snake.ate) {
+            reward += 2;
+            type = 1;
+        }
 
-        agent.memory.push(this.state, this.action, reward, nextState, !this.snake.alive);
+        if (!this.snake.alive) {
+            reward = -10;
+
+            if (this.snake.collideWall) {
+                type = 2;
+            } else if (this.snake.collideSelf) {
+                type = 3;
+            } else if (this.snake.collideSnake) {
+                type = 4;
+            }
+        }
+
+        agent.memory.push(this.state, this.action, reward, nextState, !this.snake.alive, type);
     }
 }
 
@@ -77,7 +90,9 @@ for (let color of aiColors) {
 
     agent.model.summary();
 
-    for (let iter = 1; ; iter++) {
+    let iter = 1;
+
+    while (true) {
         timerManager.gameplayTick(150);
         foodManager.gameplayTick(150);
 
@@ -118,29 +133,16 @@ for (let color of aiColors) {
             }
         }
 
-        if (iter % 500 == 0) {
+        if (agent.memory.isValid()) {
             await agent.train();
 
-            if (iter % 1000 == 0) {
+            if (iter % 2 == 0) {
                 agent.targetModel.setWeights(agent.model.getWeights());
             }
 
-            let wallCnt = 0, selfCnt = 0, snakeCnt = 0;
-            let length = 0;
-
-            for (const deadReason of deadReasons) {
-                if (deadReason == 0) wallCnt++;
-                if (deadReason == 1) selfCnt++;
-                if (deadReason == 2) snakeCnt++;
-            }
-
-            for (const deadLength of deadLengths) {
-                length += deadLength;
-            }
-
-            console.log(`[iter: ${iter / 500}] [epsilon: ${agent.epsilon.toFixed(2)}] [length: ${(length / deadLengths.length).toFixed()}] [collide wall: ${(wallCnt / deadReasons.length * 100).toFixed(2)}%] [collide self: ${(selfCnt / deadReasons.length * 100).toFixed(2)}%] [collide snake: ${(snakeCnt / deadReasons.length * 100).toFixed(2)}%]`);
+            metric(iter++, agent.epsilon);
         }
 
-        self.postMessage({snakes, foods: foodManager.foods});
+        // self.postMessage({snakes, foods: foodManager.foods});
     }
 })();

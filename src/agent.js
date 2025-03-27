@@ -1,23 +1,45 @@
 class ExperienceReplay {
-    constructor(maxSize = 10000) {
+    constructor(maxSize = 2000) {
+        this.memories = [[], [], [], [], []];
+        this.newPushSize = [0, 0, 0, 0, 0];
         this.maxSize = maxSize;
-        this.memories = [];
     }
 
-    push(state, action, reward, nextState, done) {
-        if (this.memories.length >= this.maxSize) {
-            tf.dispose(this.memories.shift());
+    push(state, action, reward, nextState, done, type) {
+        this.memories[type].push({state, action, reward, nextState, done});
+        this.newPushSize[type]++;
+
+        if (this.memories[type].length >= this.maxSize) {
+            tf.dispose(this.memories[type].shift());
+        }
+    }
+
+    isValid(minSize = 500, minNewPushSize = 0, minTotNewPushSize = 1000) {
+        for (let i = 0; i < this.memories.length; i++) {
+            if (this.memories[i].length < minSize || this.newPushSize[i] < minNewPushSize) {
+                return false;
+            }
         }
 
-        this.memories.push({state, action, reward, nextState, done});
+        if (this.newPushSize.reduce((a, b) => a + b, 0) < minTotNewPushSize) {
+            return false;
+        }
+
+        return true;
     }
 
     sample(size) {
         const samples = [];
 
         for (let i = 0; i < size; i++) {
-            samples.push(this.memories[Math.floor(Math.random() * this.memories.length)]);
+            const type = Math.floor(Math.random() * this.memories.length);
+            const index = Math.floor(Math.random() * this.memories[type].length);
+
+            samples.push(this.memories[type][index]);
         }
+
+        console.log(this.newPushSize);
+        this.newPushSize = [0, 0, 0, 0, 0];
 
         return samples;
     }
@@ -119,10 +141,6 @@ class DQNAgent {
     }
 
     async train(sampleSize = 1024, batchSize = 32) {
-        if (this.memory.memories.length < sampleSize) {
-            return;
-        }
-
         const samples = this.memory.sample(sampleSize);
         const states = [], nextStates = [];
 
