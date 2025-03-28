@@ -21,7 +21,7 @@ window.addEventListener('load', async (ev) => {
 
     vars.foodManager = new FoodManager();
     vars.effectManager = new EffectManager();
-    vars.agent = await DQNAgent.create('https://raw.githubusercontent.com/rihothy/ai-snake/main/src/model/model.json');
+    vars.agent = await DQNAgent.create('https://raw.githubusercontent.com/rihothy/ai-snake/main/src/model/model.json') || await DQNAgent.create('src/model/model.json');
 
     for (let i = 0; i < 5; i++) {
         vars.foodManager.generateFood();

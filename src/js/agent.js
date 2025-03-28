@@ -70,8 +70,12 @@ export class DQNAgent {
         const agent = new DQNAgent();
 
         if (modelPath) {
-            agent.model = await tf.loadLayersModel(modelPath);
-            agent.targetModel.setWeights(agent.model.getWeights());
+            try {
+                agent.model = await tf.loadLayersModel(modelPath);
+                agent.targetModel.setWeights(agent.model.getWeights());
+            } catch(e) {
+                return undefined;
+            }
         }
 
         agent.model.compile({optimizer: tf.train.adam(0.001), loss: 'meanSquaredError'});
