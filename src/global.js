@@ -4,7 +4,7 @@ let gridHeight = 32;
 
 const gameplayInterval = 150;
 const runMode = 'client';
-let timeDilation = 20;
+let timeDilation = 1;
 
 const foodColor = 'rgb(156, 39, 176)';
 const playerColor = 'rgb(76, 175, 80)';
@@ -16,9 +16,9 @@ let agent;
 let foodManager;
 let effectManager;
 
-// const loadModelPath = 'https://raw.githubusercontent.com/rihothy/ai-snake/main/model/model.json';
+const loadModelPath = 'https://raw.githubusercontent.com/rihothy/ai-snake/main/model/model.json';
 // const loadModelPath = 'indexeddb://ai-snake-model';
-const loadModelPath = '../model/model.json';
+// const loadModelPath = '../model/model.json';
 // const loadModelPath = '';
 // const saveModelPath = 'indexeddb://ai-snake-model';
 const saveModelPath = '';

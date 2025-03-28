@@ -140,7 +140,7 @@ for (let color of aiColors) {
                 agent.targetModel.setWeights(agent.model.getWeights());
             }
 
-            metric(iter++, agent.epsilon);
+            metric(iter++, agent.epsilon, agent.gamma);
         }
 
         // self.postMessage({snakes, foods: foodManager.foods});

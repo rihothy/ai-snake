@@ -1,6 +1,6 @@
 const deadInfos = [];
 
-function metric(iter, epsilon) {
+function metric(iter, epsilon, gamma) {
     let wallCnt = 0, selfCnt = 0, snakeCnt = 0;
     let length = 0, count = 0;
 
@@ -13,7 +13,7 @@ function metric(iter, epsilon) {
         count += info[2];
     }
 
-    console.log(`[iter: ${iter}] [epsilon: ${epsilon.toFixed(2)}] [length: ${(length / deadInfos.length).toFixed(2)}] [count: ${(count / deadInfos.length).toFixed(2)}] [collide wall: ${(wallCnt / deadInfos.length * 100).toFixed(2)}%] [collide self: ${(selfCnt / deadInfos.length * 100).toFixed(2)}%] [collide snake: ${(snakeCnt / deadInfos.length * 100).toFixed(2)}%]`);
+    console.log(`[iter: ${iter}] [epsilon: ${epsilon.toFixed(2)}] [gamma: ${gamma.toFixed(2)}] [length: ${(length / deadInfos.length).toFixed(2)}] [count: ${(count / deadInfos.length).toFixed(2)}] [collide wall: ${(wallCnt / deadInfos.length * 100).toFixed(2)}%] [collide self: ${(selfCnt / deadInfos.length * 100).toFixed(2)}%] [collide snake: ${(snakeCnt / deadInfos.length * 100).toFixed(2)}%]`);
 }
 
 class Snake {
