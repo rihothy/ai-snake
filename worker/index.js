@@ -1,17 +1,18 @@
-importScripts('../src/global.js', '../src/food.js', '../src/effects.js', '../src/agent.js', '../src/snake.js');
 importScripts('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
+importScripts('../src/global.js', '../src/food.js', '../src/effects.js', '../src/agent.js', '../src/snake.js');
 
 class SnakeAI {
     constructor(snake) {
         this.snake = snake;
 
         this.directionChanged = false;
+        this.memories = [];
         this.action;
         this.state;
     }
 
     act() {
-        this.state = agent.getState(this.snake, foodManager.foods, snakes);
+        this.state = agent.getState(this.snake);
         this.action = agent.getAction(this.state);
 
         this.snake.setDirection(['up', 'right', 'down', 'left'][this.action]);
@@ -19,13 +20,21 @@ class SnakeAI {
     }
 
     memory() {
-        let nextState = agent.getState(this.snake, foodManager.foods, snakes);
+        if (!this.state) {
+            return;
+        }
+
+        let nextState = agent.getState(this.snake);
         let reward = -0.1;
         let type = 0;
 
         if (this.snake.ate) {
             reward += 2;
             type = 1;
+        }
+
+        if (this.directionChanged) {
+            reward -= 0.05;
         }
 
         if (!this.snake.alive) {
@@ -40,7 +49,19 @@ class SnakeAI {
             }
         }
 
-        agent.memory.push(this.state, this.action, reward, nextState, !this.snake.alive, type);
+        this.memories.push({state: this.state, action: this.action, reward, nextState, done: !this.snake.alive, type});
+
+        if (!this.snake.alive) {
+            for (let i = 0; i < this.memories.length; i++) {
+                if ((i > this.memories.length - Math.min(Math.max(10, this.snake.survivalCount / 10), 50)) || Math.random() < 0.1) {
+                    agent.memory.push(this.memories[i].state, this.memories[i].action, this.memories[i].reward, this.memories[i].nextState, this.memories[i].done, this.memories[i].type);
+                } else {
+                    tf.dispose(this.memories[i]);
+                }
+            }
+
+            this.memories = [];
+        }
     }
 }
 
@@ -92,10 +113,7 @@ for (let color of aiColors) {
 
     let iter = 1;
 
-    while (true) {
-        timerManager.gameplayTick(150);
-        foodManager.gameplayTick(150);
-
+    for (let jter = 1; ; jter++) {
         for (const ai of aiControllers) {
             ai.act();
         }
@@ -111,6 +129,9 @@ for (let color of aiColors) {
         for (const snake of snakes) {
             snake.checkFood();
         }
+
+        timerManager.gameplayTick(150);
+        foodManager.gameplayTick(150);
 
         for (const ai of aiControllers) {
             ai.memory();
@@ -133,10 +154,11 @@ for (let color of aiColors) {
             }
         }
 
-        if (agent.memory.isValid()) {
+        // if (agent.memory.isValid()) {
+        if (jter % 500 == 0) {
             await agent.train();
 
-            if (iter % 2 == 0) {
+            if (jter % 1000 == 0) {
                 agent.targetModel.setWeights(agent.model.getWeights());
             }
 

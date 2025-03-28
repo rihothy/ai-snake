@@ -32,10 +32,13 @@ class ExperienceReplay {
         const samples = [];
 
         for (let i = 0; i < size; i++) {
-            const type = Math.floor(Math.random() * this.memories.length);
-            const index = Math.floor(Math.random() * this.memories[type].length);
+            let type = Math.floor(Math.random() * 3);
 
-            samples.push(this.memories[type][index]);
+            if (type > 1) {
+                type = 2 + Math.floor(Math.random() * 3);
+            }
+
+            samples.push(this.memories[type][Math.floor(Math.random() * this.memories[type].length)]);
         }
 
         console.log(this.newPushSize);
@@ -61,20 +64,46 @@ class DQNAgent {
     }
 
     createModel() {
-        let model = tf.sequential();
+        const input = tf.layers.input({shape: [this.viewSize, this.viewSize, 5]});
 
-        model.add(tf.layers.conv2d({filters: 32, kernelSize: 3, padding: 'same', activation: 'relu', inputShape: [this.viewSize, this.viewSize, 5]}));
-        model.add(tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}));
-        model.add(tf.layers.conv2d({filters: 64, kernelSize: 3, padding: 'same', activation: 'relu'}));
-        model.add(tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}));
-        model.add(tf.layers.conv2d({filters: 64, kernelSize: 3, padding: 'same', activation: 'relu'}));
-        model.add(tf.layers.conv2d({filters: 128, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}));
-        model.add(tf.layers.conv2d({filters: 128, kernelSize: 3, activation: 'relu'}));
-        model.add(tf.layers.flatten());
-        model.add(tf.layers.dense({units: 128, activation: 'relu'}));
-        model.add(tf.layers.dense({units: this.actionSize, activation: 'linear'}));
+        let x = tf.layers.conv2d({filters: 32, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(input);
+        x = tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(x);
+        x = tf.layers.conv2d({filters: 64, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(x);
+        x = tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(x);
+        x = tf.layers.conv2d({filters: 64, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(x);
+        x = tf.layers.conv2d({filters: 128, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(x);
+        x = tf.layers.conv2d({filters: 128, kernelSize: 3, activation: 'relu'}).apply(x);
+        x = tf.layers.flatten().apply(x);
 
-        model.compile({optimizer: tf.train.adam(0.001), loss: 'meanSquaredError'});
+        const sharedFeatures = tf.layers.dense({units: 128, activation: 'relu'}).apply(x);
+
+        // 价值流 (V)
+        const value = tf.layers.dense({units: 1}).apply(sharedFeatures);
+
+        // 优势流 (A)
+        const advantage = tf.layers.dense({units: this.actionSize}).apply(sharedFeatures);
+
+        // 组合输出
+        // Q(s,a) = V(s) + (A(s,a) - mean(A(s,a)))
+        // const output = tf.layers.add([
+        //     value,
+        //     tf.layers.subtract([
+        //         advantage,
+        //         tf.mean(advantage, 1, true)
+        //     ])
+        // ]);
+
+        const output = tf.layers.dense({units: this.actionSize}).apply(sharedFeatures);
+
+        const model = tf.model({
+            inputs: input,
+            outputs: output
+        });
+
+        model.compile({
+            optimizer: tf.train.adam(0.001),
+            loss: 'meanSquaredError'
+        });
 
         return model;
     }
@@ -152,16 +181,17 @@ class DQNAgent {
         const stateTensor = tf.tensor4d(states);
         const nextStateTensor = tf.tensor4d(nextStates);
 
-        const targetQ = this.targetModel.predict(nextStateTensor);
-        const currentQ = this.model.predict(stateTensor);
+        const targetTensor = tf.tidy(() => {
+            const nextAction = this.model.predict(nextStateTensor).argMax(1).dataSync();
+            const nextValue = this.targetModel.predict(nextStateTensor).arraySync();
+            const targets = this.model.predict(stateTensor).arraySync();
 
-        const targets = currentQ.arraySync();
+            for (let i = 0; i < sampleSize; i++) {
+                targets[i][samples[i].action] = samples[i].reward + (samples[i].done ? 0 : this.gamma * nextValue[i][nextAction[i]]);
+            }
 
-        for (let i = 0; i < sampleSize; i++) {
-            targets[i][samples[i].action] = samples[i].reward + (samples[i].done ? 0 : this.gamma * Math.max(...targetQ.arraySync()[i]))
-        }
-
-        const targetTensor = tf.tensor2d(targets);
+            return tf.tensor2d(targets);
+        });
 
         await this.model.fit(stateTensor, targetTensor, {epochs: 1, batchSize});
 
@@ -169,7 +199,7 @@ class DQNAgent {
             await this.model.save(saveModelPath);
         }
 
-        tf.dispose([stateTensor, nextStateTensor, targetQ, currentQ, targetTensor]);
         this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
+        tf.dispose([stateTensor, nextStateTensor, targetTensor]);
     }
 }

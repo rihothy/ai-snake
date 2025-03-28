@@ -143,7 +143,6 @@ window.addEventListener('load', async (ev) => {
 
         while (gameplayDeltaTime >= gameplayInterval) {
             gameplayDeltaTime -= gameplayInterval;
-            foodManager.gameplayTick(gameplayInterval);
 
             tf.tidy(() => {
                 const states = [];
@@ -168,6 +167,8 @@ window.addEventListener('load', async (ev) => {
             snakes.forEach(snake => snake.move());
             snakes.forEach(snake => snake.checkCollision());
             snakes.forEach(snake => snake.checkFood());
+
+            foodManager.gameplayTick(gameplayInterval);
 
             for (let i = snakes.length - 1; i >= 0; i--) {
                 if (!snakes[i].alive) {
