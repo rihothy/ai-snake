@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>AI Snake</title>
+        <link rel="shortcut icon" href="src/img/icon.png" type="image/x-icon">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+
+        <style>
+            html, body {
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                width: 100%;
+                height: 100%;
+            }
+
+            .container {
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                margin: auto;
+                padding: 1rem;
+                display: block;
+                position: absolute;
+                width: fit-content;
+                height: fit-content;
+                border-radius: 0.5rem;
+                box-shadow: 0.25rem 0.25rem 0.75rem rgba(126, 126, 126, 0.5) inset;
+            }
+        </style>
+
+        <script type="module">
+            import { cfgs } from './src/js/global.js';
+
+            window.addEventListener('load', () => {
+                const canvas = document.getElementById('gameCanvas');
+                const worker = new Worker('dist/train.worker.js');
+                const ctx = canvas.getContext('2d');
+                let snakes = [], foods = [];
+
+                canvas.height = cfgs.gridHeight * cfgs.gridSize;
+                canvas.width = cfgs.gridWidth * cfgs.gridSize;
+
+                let render = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    for (const food of foods) {
+                        ctx.fillStyle = cfgs.foodColor;
+                        ctx.fillRect(food.x * cfgs.gridSize, food.y * cfgs.gridSize, cfgs.gridSize, cfgs.gridSize);
+                    }
+
+                    for (const snake of snakes) {
+                        for (let i = 0; i < snake.body.length; i++) {
+                            ctx.fillStyle = snake.color.replace('rgb', 'rgba').replace(')', `, ${i ? 0.5 : 1})`);
+                            ctx.fillRect(snake.body[i].x * cfgs.gridSize, snake.body[i].y * cfgs.gridSize, cfgs.gridSize, cfgs.gridSize);
+                        }
+                    }
+
+                    requestAnimationFrame(render);
+                }
+
+                worker.onmessage = (ev) => {
+                    snakes = ev.data.snakes;
+                    foods = ev.data.foods;
+                }
+
+                // requestAnimationFrame(render);
+            });
+        </script>
+    </head>
+
+    <body>
+        <div class="container">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+    </body>
+</html>

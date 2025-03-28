@@ -1,0 +1,26 @@
+{
+  "name": "ai-snake",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/js/index.js",
+  "scripts": {
+    "build": "webpack --mode development"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rihothy/ai-snake.git"
+  },
+  "author": "lihongxin",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rihothy/ai-snake/issues"
+  },
+  "homepage": "https://github.com/rihothy/ai-snake#readme",
+  "devDependencies": {
+    "@babel/core": "^7.26.10",
+    "@babel/preset-env": "^7.26.9",
+    "@tensorflow/tfjs": "^4.22.0",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1"
+  }
+}
