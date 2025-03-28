@@ -29,8 +29,8 @@
 
             .canvas-container {
                 border-radius: 10px;
-                box-shadow: inset 5px 5px 10px #babecc,
-                           inset -5px -5px 10px #ffffff;
+                box-shadow: 5px 5px 10px #babecc,
+                            -5px -5px 10px #ffffff;
                 padding: 1rem;
                 background-color: #e0e5ec;
             }
@@ -100,14 +100,36 @@
                 const canvas = document.getElementById('gameCanvas');
                 const worker = new Worker('dist/train.worker.js');
                 const ctx = canvas.getContext('2d');
+                let lastTimestamp = 0;
                 let isPlaying = false;
                 let sampleRate = 1;
+                let frameTime = 16;
                 let sequence = [];
 
-                let render = () => {
+                let render = (timestamp) => {
+                    if (!isPlaying) {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        return;
+                    }
+
                     if (sequence.length == 0) {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        requestAnimationFrame(render);
+                        lastTimestamp = timestamp;
+                        return;
+                    }
+
+                    let deltaTime = timestamp - lastTimestamp;
+
+                    if (deltaTime < frameTime) {
                         requestAnimationFrame(render);
                         return;
+                    }
+
+                    while (deltaTime - frameTime >= frameTime) {
+                        lastTimestamp += frameTime;
+                        deltaTime -= frameTime;
+                        sequence.shift();
                     }
 
                     const {snakes, foods} = sequence.shift();
@@ -126,11 +148,8 @@
                         }
                     }
 
-                    if (isPlaying) {
-                        requestAnimationFrame(render);
-                    } else {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    }
+                    lastTimestamp += frameTime;
+                    requestAnimationFrame(render);
                 };
 
                 canvas.height = cfgs.gridHeight * cfgs.gridSize;
@@ -150,9 +169,21 @@
                     sequence = [];
                 });
 
+                document.getElementById('frameRate').addEventListener('change', (ev) => {
+                    frameTime = 1000 / Math.max(1, parseInt(ev.target.value));
+                    worker.postMessage({isPlaying, sampleRate});
+                    sequence = [];
+                });
+
                 worker.onmessage = (ev) => {
-                    if (ev.data.sampleRate == sampleRate && sequence.length < 10000) {
+                    if (ev.data.sampleRate == sampleRate) {
                         sequence.push({snakes: ev.data.snakes, foods: ev.data.foods});
+
+                        if (sequence.length > 10000) {
+                            worker.postMessage({isPlaying: false, sampleRate});
+                        }
+                    } else {
+                        sequence = [];
                     }
                 }
             });
@@ -166,7 +197,7 @@
         <div class="controls">
             <button id="playPauseBtn">播放</button>
             <input type="number" id="sampleRate" placeholder="播放采样">
-            <input type="number" id="timeDilation" placeholder="时间膨胀">
+            <input type="number" id="frameRate" placeholder="播放帧率">
         </div>
     </body>
 </html>
