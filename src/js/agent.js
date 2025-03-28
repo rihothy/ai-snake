@@ -52,6 +52,7 @@ class ExperienceReplay {
 
 export class DQNAgent {
     constructor() {
+        this.iter = 1;
         this.gamma = 0.95;
         this.viewSize = 23;
         this.epsilon = 1.0;
@@ -174,7 +175,7 @@ export class DQNAgent {
         });
     }
 
-    async train(iter, modelPath, sampleSize = 1024, batchSize = 32, epochs = 1) {
+    async train(modelPath, sampleSize = 1024, batchSize = 32, epochs = 1) {
         const samples = this.memory.sample(sampleSize);
         const states = [], nextStates = [];
 
@@ -204,7 +205,7 @@ export class DQNAgent {
             await this.model.save(modelPath);
         }
 
-        if (iter % 2 == 0) {
+        if (this.iter % 2 == 0) {
             this.targetModel.setWeights(this.model.getWeights());
         }
 
@@ -224,7 +225,7 @@ export class DQNAgent {
         }
 
         console.log([
-            `[iter: ${iter}]`,
+            `[iter: ${this.iter++}]`,
             `[gamma: ${this.gamma.toFixed(2)}]`,
             `[epsilon: ${this.epsilon.toFixed(2)}]`,
             `[avg length: ${(avgLength / metricsInfo.length).toFixed(2)}]`,

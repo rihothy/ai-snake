@@ -82,6 +82,14 @@ class TimerManager {
 
 
 (async () => {
+    let isPlaying = false;
+    let sampleRate = 1;
+
+    self.onmessage = (ev) => {
+        isPlaying = ev.data.isPlaying;
+        sampleRate = ev.data.sampleRate;
+    };
+
     const timerManager = new TimerManager();
     const gameplayInterval = 150;
     const aiControllers = [];
@@ -97,7 +105,7 @@ class TimerManager {
         aiControllers.push(new SnakeAI(vars.snakes[vars.snakes.push(new Snake(color)) - 1]));
     }
 
-    for (let iter = 1; ; iter++) {
+    for (let iter = 0; ; iter++) {
         aiControllers.forEach(ai => ai.move());
         vars.snakes.forEach(snake => snake.checkCollision());
         vars.snakes.forEach(snake => snake.checkFood());
@@ -123,10 +131,12 @@ class TimerManager {
             }
         }
 
-        if (iter % 500 == 0 && vars.agent.memory.isValid()) {
-            await vars.agent.train(iter / 500, 'indexeddb://ai-snake-model');
+        if (vars.agent.memory.isValid()) {
+            await vars.agent.train('indexeddb://ai-snake-model');
         }
 
-        // self.postMessage({snakes, foods: foodManager.foods});
+        if (isPlaying && iter % sampleRate === 0) {
+            self.postMessage({snakes: vars.snakes, foods: vars.foodManager.foods, sampleRate});
+        }
     }
 })();
