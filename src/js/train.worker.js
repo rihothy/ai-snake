@@ -34,7 +34,7 @@ class SnakeAI {
         }
 
         if (!this.snake.states.alive) {
-            reward = -10;
+            reward = -7.5;
 
             if (this.snake.states.collideWall) {
                 type = 2;
@@ -49,7 +49,9 @@ class SnakeAI {
 
         if (!this.snake.states.alive) {
             for (let i = 0; i < this.memories.length; i++) {
-                if ((i > this.memories.length - Math.min(Math.max(10, this.snake.states.survivalCount / 10), 50)) || Math.random() < 0.1) {
+                const shouldPush = i > this.memories.length - Math.min(Math.max(10, this.snake.states.survivalCount / 10), 50);
+
+                if (shouldPush || Math.random() < 0.1) {
                     vars.agent.memory.push(this.memories[i].state, this.memories[i].action, this.memories[i].reward, this.memories[i].nextState, this.memories[i].done, this.memories[i].type);
                 } else {
                     tf.dispose(this.memories[i]);
@@ -106,6 +108,7 @@ class TimerManager {
     }
 
     for (let iter = 0; ; iter++) {
+        return;
         aiControllers.forEach(ai => ai.move());
         vars.snakes.forEach(snake => snake.checkCollision());
         vars.snakes.forEach(snake => snake.checkFood());

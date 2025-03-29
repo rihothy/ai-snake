@@ -57,6 +57,7 @@ export class DQNAgent {
         this.gamma = 0.95;
         this.viewSize = 23;
         this.epsilon = 1.0;
+        this.stateSize = 6;
         this.actionSize = 4;
         this.epsilonMin = 0.01;
         this.epsilonDecay = 0.9975;
@@ -86,7 +87,7 @@ export class DQNAgent {
     }
 
     buildModel() {
-        let input = tf.layers.input({shape: [this.viewSize, this.viewSize, 5]});
+        let input = tf.layers.input({shape: [this.viewSize, this.viewSize, this.stateSize]});
         let layer = input;
 
         layer = tf.layers.conv2d({filters: 32, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(layer);
@@ -112,7 +113,7 @@ export class DQNAgent {
     }
 
     getState(snake) {
-        const state = tf.buffer([this.viewSize, this.viewSize, 5]);
+        const state = tf.buffer([this.viewSize, this.viewSize, this.stateSize]);
         const halfViewSize = Math.floor(this.viewSize / 2);
         const head = snake.body[0];
 
@@ -155,11 +156,23 @@ export class DQNAgent {
         }
 
         for (const food of vars.foodManager.foods) {
-            const x = food.x + offsetX;
-            const y = food.y + offsetY;
+            let x = food.x + offsetX;
+            let y = food.y + offsetY;
 
             if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
                 state.set(1, x, y, 4);
+            } else {
+                x -= halfViewSize;
+                y -= halfViewSize;
+
+                const radius = Math.sqrt(x * x + y * y);
+
+                x = Math.round(x / radius * (halfViewSize - 1)) + halfViewSize;
+                y = Math.round(y / radius * (halfViewSize - 1)) + halfViewSize;
+
+                if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
+                    state.set(Math.min(1, (1 - Math.min(0.99, radius / halfViewSize)) / 10 + state.get(x, y, 5)), x, y, 5);
+                }
             }
         }
 
