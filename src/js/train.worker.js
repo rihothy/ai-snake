@@ -49,13 +49,23 @@ class SnakeAI {
 
         if (!this.snake.states.alive) {
             for (let i = 0; i < this.memories.length; i++) {
-                const shouldPush = i > this.memories.length - Math.min(Math.max(10, this.snake.states.survivalCount / 10), 50);
+                const checkShouldPush = () => {return (i > this.memories.length - Math.min(50, Math.max(10, this.snake.states.lifeCount / 10))) || Math.random() < 0.1;};
+                const rorate90 = (x) => {const newX = tf.tidy(() => {return x.transpose([1, 0, 2]).reverse(1);});tf.dispose(x);return newX;};
+                const memory = this.memories[i];
 
-                if (shouldPush || Math.random() < 0.1) {
-                    vars.agent.memory.push(this.memories[i].state, this.memories[i].action, this.memories[i].reward, this.memories[i].nextState, this.memories[i].done, this.memories[i].type);
-                } else {
-                    tf.dispose(this.memories[i]);
+                for (let j = 0; j < 4; ++j) {
+                    if (j) {
+                        memory.state = rorate90(memory.state);
+                        memory.action = (memory.action + 1) % 4;
+                        memory.nextState = rorate90(memory.nextState);
+                    }
+
+                    if (checkShouldPush()) {
+                        vars.agent.memory.push(memory.state.clone(), memory.action, memory.reward, memory.nextState.clone(), memory.done, memory.type);
+                    }
                 }
+
+                tf.dispose(memory);
             }
 
             this.memories = [];
@@ -108,7 +118,6 @@ class TimerManager {
     }
 
     for (let iter = 0; ; iter++) {
-        return;
         aiControllers.forEach(ai => ai.move());
         vars.snakes.forEach(snake => snake.checkCollision());
         vars.snakes.forEach(snake => snake.checkFood());
