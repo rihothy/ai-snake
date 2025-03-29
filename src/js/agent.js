@@ -1,4 +1,5 @@
 import { cfgs, vars, metricsInfo } from './global.js';
+import * as customLayers from './layers.js';
 import * as tf from '@tensorflow/tfjs';
 
 class ExperienceReplay {
@@ -72,7 +73,7 @@ export class DQNAgent {
         if (modelPath) {
             try {
                 agent.model = await tf.loadLayersModel(modelPath);
-                agent.targetModel.setWeights(agent.model.getWeights());
+                agent.targetModel = await tf.loadLayersModel(modelPath);
             } catch(e) {
                 return undefined;
             }
@@ -85,7 +86,7 @@ export class DQNAgent {
     }
 
     buildModel() {
-        const input = tf.layers.input({shape: [this.viewSize, this.viewSize, 5]});
+        let input = tf.layers.input({shape: [this.viewSize, this.viewSize, 5]});
         let layer = input;
 
         layer = tf.layers.conv2d({filters: 32, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(layer);
@@ -98,24 +99,16 @@ export class DQNAgent {
         layer = tf.layers.flatten().apply(layer);
 
         const sharedLayer = tf.layers.dense({units: 128, activation: 'relu'}).apply(layer);
-
-        /* Dueling DQN
-        // Q(s,a) = V(s) + (A(s,a) - mean(A(s,a)))
-        const value = tf.layers.dense({units: 1}).apply(sharedFeatures);
-        const advantage = tf.layers.dense({units: this.actionSize}).apply(sharedFeatures);
-        const output = tf.layers.add([
-            value,
-            tf.layers.subtract([
+        const advantage = tf.layers.dense({units: this.actionSize}).apply(sharedLayer);
+        const value = tf.layers.dense({units: 1}).apply(sharedLayer);
+        const output = tf.layers.add().apply([value,
+            (new customLayers.Sub()).apply([
                 advantage,
-                tf.mean(advantage, 1, true)
+                (new customLayers.Mean(-1)).apply(advantage)
             ])
         ]);
-        */
 
-        const output = tf.layers.dense({units: this.actionSize}).apply(sharedLayer);
-        const model = tf.model({inputs: input, outputs: output});
-
-        return model;
+        return tf.model({inputs: input, outputs: output});
     }
 
     getState(snake) {
