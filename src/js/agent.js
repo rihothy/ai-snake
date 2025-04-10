@@ -53,8 +53,8 @@ export class DQNAgent {
             }
         }
 
-        for (let y = 0; y < this.viewSize; y++) {
-            for (let x = 0; x < this.viewSize; x++) {
+        for (let y = 0; y < this.viewSize; ++y) {
+            for (let x = 0; x < this.viewSize; ++x) {
                 const gridX = x - offsetX;
                 const gridY = y - offsetY;
 

@@ -45,10 +45,10 @@ export class Snake {
         const head = {...this.body[0]};
 
         switch (this.nextDirection) {
-            case 0: head.x++; break;
-            case 1: head.y++; break;
-            case 2: head.x--; break;
-            case 3: head.y--; break;
+            case 0: ++head.x; break;
+            case 1: ++head.y; break;
+            case 2: --head.x; break;
+            case 3: --head.y; break;
         }
 
         this.lastBody = this.body.map(curPos => ({...curPos}));
@@ -65,7 +65,7 @@ export class Snake {
             return;
         }
 
-        for (let i = 1; i < this.body.length; i++) {
+        for (let i = 1; i < this.body.length; ++i) {
             if (head.x === this.body[i].x && head.y === this.body[i].y) {
                 this.alive = false;
                 return;
@@ -94,7 +94,7 @@ export class Snake {
                 }
 
                 vars.foodManager.foods.splice(i, 1);
-                this.foodCount++;
+                ++this.foodCount;
             }
         }
 

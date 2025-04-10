@@ -84,13 +84,13 @@ export class EffectManager {
     }
 
     createFoodEffect(x, y) {
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 12; ++i) {
             this.particles.push(new Particle(x, y, cfgs.foodColor));
         }
     }
 
     createSnakeEffect(x, y, color, shouldConverge = false) {
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 10; ++i) {
             this.particles.push(new Particle(x, y, color, shouldConverge));
         }
     }

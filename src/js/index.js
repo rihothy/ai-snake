@@ -18,7 +18,21 @@ window.addEventListener('load', async (ev) => {
     vars.effectManager = new EffectManager();
     vars.agent = await DQNAgent.create('src/model/model.json') || await DQNAgent.create('https://raw.githubusercontent.com/rihothy/ai-snake/main/src/model/model.json');
 
-    for (let i = 0; i < 5; i++) {
+    tf.tidy(() => {
+        for (let i = 0; i < 5; ++i) {
+            vars.agent.model.predict(tf.ones([5, vars.agent.viewSize, vars.agent.viewSize, vars.agent.stateSize]));
+        }
+
+        const startTime = performance.now();
+
+        for (let i = 0; i < 10; ++i) {
+            vars.agent.model.predict(tf.ones([5, vars.agent.viewSize, vars.agent.viewSize, vars.agent.stateSize]));
+        }
+
+        cfgs.timeDilation = Math.min(7.5, 100 / ((performance.now() - startTime) / 10));
+    });
+
+    for (let i = 0; i < 5; ++i) {
         vars.foodManager.generateFood();
     }
 
@@ -92,7 +106,7 @@ window.addEventListener('load', async (ev) => {
 
             for (let i = vars.snakes.length - 1; i >= 0; i--) {
                 if (!vars.snakes[i].alive) {
-                    for (let j = 0; j < vars.snakes[i].body.length; j++) {
+                    for (let j = 0; j < vars.snakes[i].body.length; ++j) {
                         const segment = vars.snakes[i].body[j];
 
                         vars.effectManager.createSnakeEffect(segment.x * cfgs.gridSize + cfgs.gridSize / 2, segment.y * cfgs.gridSize + cfgs.gridSize / 2, vars.snakes[i].color, j % 2 == 0);
