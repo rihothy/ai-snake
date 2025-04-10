@@ -24,8 +24,6 @@ export const vars = {
     /** @type {EffectManager} */
     effectManager: null,
     checkPositionOccupied: (x, y) => {
-        return vars.snakes.some(snake => snake.states.alive && snake.body.some(segment => segment.x === x && segment.y === y)) || vars.foodManager.foods.some(food => food.x === x && food.y === y);
+        return vars.snakes.some(snake => snake.alive && snake.body.some(segment => segment.x === x && segment.y === y)) || vars.foodManager.foods.some(food => food.x === x && food.y === y);
     }
 };
-
-export const metricsInfo = [];

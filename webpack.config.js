@@ -4,7 +4,6 @@ const path = require('path');
 module.exports = {
   entry: {
     'index': './src/js/index.js',
-    'train.worker': './src/js/train.worker.js'
   },
 
   output: {

@@ -1,6 +1,6 @@
 import { cfgs, vars } from './global.js';
 
-export class Food {
+class Food {
     constructor(x, y) {
         this.size = cfgs.gridSize * 0.65 - 1;
         this.lifeTime = 0;
@@ -30,16 +30,14 @@ export class Food {
         ctx.arcTo(x + this.size, y, x + this.size, y + this.size / 4, this.size / 4);
         ctx.lineTo(x + this.size, y + this.size - this.size / 4);
         ctx.arcTo(x + this.size, y + this.size, x + this.size - this.size / 4, y + this.size, this.size / 4);
-        ctx.lineTo(x + this.size, y + this.size - this.size / 4);
-        ctx.arcTo(x + this.size, y + this.size, x + this.size - this.size / 4, y + this.size, this.size / 4);
-        ctx.lineTo(x + this.size - this.size / 4, y + this.size);
+        ctx.lineTo(x + this.size / 4, y + this.size);
         ctx.arcTo(x, y + this.size, x, y + this.size - this.size / 4, this.size / 4);
-        ctx.lineTo(x, y + this.size - this.size / 4);
+        ctx.lineTo(x, y + this.size / 4);
         ctx.arcTo(x, y, x + this.size / 4, y, this.size / 4);
         ctx.closePath();
         ctx.fill();
     }
-};
+}
 
 export class FoodManager {
     constructor() {
@@ -50,43 +48,44 @@ export class FoodManager {
         this.foods = [];
     }
 
-    generateFood() {
-        const food = new Food(0, 0);
-
-        do {
-            food.y = Math.floor(Math.random() * cfgs.gridHeight);
-            food.x = Math.floor(Math.random() * cfgs.gridWidth);
-        } while (vars.checkPositionOccupied(food.x, food.y));
-
-        this.foods.push(food);
-    }
-
-    delayGenerateFood(x, y, delay) {
-        if (x >= 0 && x < cfgs.gridWidth && y >= 0 && y < cfgs.gridHeight) {
+    generateFood(x, y, delay) {
+        if (delay !== undefined) {
             this.delayFoods.push({x, y, delay});
+        } else {
+            if (x !== undefined && y !== undefined) {
+                if (!vars.checkPositionOccupied(x, y) && x >= 0 && x < cfgs.gridWidth && y >= 0 && y < cfgs.gridHeight) {
+                    this.foods.push(new Food(x, y));
+                }
+            } else {
+                do {
+                    x = Math.floor(Math.random() * cfgs.gridWidth);
+                    y = Math.floor(Math.random() * cfgs.gridHeight);
+                } while (vars.checkPositionOccupied(x, y));
+    
+                this.foods.push(new Food(x, y));
+            }
         }
     }
 
-    gameplayTick(deltaTime) {
+    gameplayTick() {
         const foodRatio = (this.foods.length - this.minFoodCount) / (this.maxFoodCount - this.minFoodCount);
-        const interval = 250 + (5000 - 250) * foodRatio;
+        const interval = 2 + 32 * foodRatio;
+
+        this.deltaTime += 1;
 
         for (let i = this.delayFoods.length - 1; i >= 0; i--) {
-            if ((this.delayFoods[i].delay -= deltaTime) <= 0) {
-                if (!vars.checkPositionOccupied(this.delayFoods[i].x, this.delayFoods[i].y)) {
-                    this.foods.push(new Food(this.delayFoods[i].x, this.delayFoods[i].y));
-                }
-
+            if (--this.delayFoods[i].delay <= 0) {
+                this.generateFood(this.delayFoods[i].x, this.delayFoods[i].y);
                 this.delayFoods.splice(i, 1);
             }
         }
 
-        this.deltaTime += deltaTime;
-
-        if (this.foods.length < this.maxFoodCount && this.deltaTime >= interval) {
+        while (this.foods.length < this.maxFoodCount && this.deltaTime >= interval) {
             this.deltaTime -= interval;
             this.generateFood();
-        } else if (this.foods.length < this.minFoodCount) {
+        }
+
+        while (this.foods.length < this.minFoodCount) {
             this.generateFood();
             this.deltaTime = 0;
         }

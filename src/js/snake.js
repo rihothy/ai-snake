@@ -1,4 +1,4 @@
-import { cfgs, vars, metricsInfo } from './global.js';
+import { cfgs, vars } from './global.js';
 
 export class Snake {
     constructor(color, isPlayer = false, x = undefined, y = undefined) {
@@ -7,41 +7,52 @@ export class Snake {
             x = Math.floor(Math.random() * cfgs.gridWidth);
         }
 
+        this.direction = this.nextDirection = 0;
         this.body = [{x, y}, {x, y}, {x, y}];
-        this.direction = 'right';
         this.isPlayer = isPlayer;
         this.color = color;
+        this.foodCount = 0;
+        this.alive = true;
 
         this.lastBody = this.body.map(curPos => ({...curPos}));
         this.animationProgress = 0;
         this.targetRotation = 0;
         this.rotation = 0;
-
-        this.states = {
-            collideOtherSnake: false,
-            collideSelf: false,
-            collideWall: false,
-            foodCount: 0,
-            lifeCount: 0,
-            alive: true,
-            ate: false,
-        };
     }
 
-    move(direction) {
-        if (!(direction == 'up' && this.direction == 'down' || direction == 'down' && this.direction == 'up' || direction == 'left' && this.direction == 'right' || direction == 'right' && this.direction == 'left')) {
-            this.targetRotation = {up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0}[direction];
-            while (this.targetRotation < this.rotation - Math.PI) this.targetRotation += Math.PI * 2;
-            while (this.targetRotation > this.rotation + Math.PI) this.targetRotation -= Math.PI * 2;
-            this.direction = direction;
+    setDirection(newDirection) {
+        if ((this.direction - newDirection + 4) % 4 != 2) {
+            switch (newDirection) {
+                case 0: this.targetRotation = 0; break;
+                case 1: this.targetRotation = Math.PI / 2; break;
+                case 2: this.targetRotation = Math.PI; break;
+                case 3: this.targetRotation = -Math.PI / 2; break;
+            }
+
+            while (this.targetRotation < this.rotation - Math.PI) {
+                this.targetRotation += Math.PI * 2;
+            }
+
+            while (this.targetRotation > this.rotation + Math.PI) {
+                this.targetRotation -= Math.PI * 2;
+            }
+
+            this.nextDirection = newDirection;
+        }
+    }
+
+    move() {
+        const head = {...this.body[0]};
+
+        switch (this.nextDirection) {
+            case 0: head.x++; break;
+            case 1: head.y++; break;
+            case 2: head.x--; break;
+            case 3: head.y--; break;
         }
 
-        const dir = {up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0]}[this.direction];
-        const head = {x: this.body[0].x + dir[0], y: this.body[0].y + dir[1]};
-
         this.lastBody = this.body.map(curPos => ({...curPos}));
-        this.states.lifeCount++;
-        this.states.ate = false;
+        this.direction = this.nextDirection;
         this.body.unshift(head);
         this.body.pop();
     }
@@ -49,33 +60,24 @@ export class Snake {
     checkCollision() {
         const head = this.body[0];
 
-        while (metricsInfo.length > 500) {
-            metricsInfo.shift();
+        if (head.x < 0 || head.x >= cfgs.gridWidth || head.y < 0 || head.y >= cfgs.gridHeight) {
+            this.alive = false;
+            return;
         }
 
-        if (head.x < 0 || head.x >= cfgs.gridWidth || head.y < 0 || head.y >= cfgs.gridHeight) {
-            metricsInfo.push({type: 'collideWall', length: this.body.length, lifeCount: this.states.lifeCount});
-            this.states.collideWall = true;
-            this.states.alive = false;
-        } else {
-            for (let i = 1; i < this.body.length; i++) {
-                if (head.x === this.body[i].x && head.y === this.body[i].y) {
-                    metricsInfo.push({type: 'collideSelf', length: this.body.length, lifeCount: this.states.lifeCount});
-                    this.states.collideSelf = true;
-                    this.states.alive = false;
-                    return;
-                }
+        for (let i = 1; i < this.body.length; i++) {
+            if (head.x === this.body[i].x && head.y === this.body[i].y) {
+                this.alive = false;
+                return;
             }
+        }
 
-            for (let otherSnake of vars.snakes) {
-                if (otherSnake !== this && otherSnake.states.alive) {
-                    for (let segment of otherSnake.body) {
-                        if (head.x === segment.x && head.y === segment.y) {
-                            metricsInfo.push({type: 'collideOtherSnake', length: this.body.length, lifeCount: this.states.lifeCount});
-                            this.states.collideOtherSnake = true;
-                            this.states.alive = false;
-                            return;
-                        }
+        for (let otherSnake of vars.snakes) {
+            if (otherSnake !== this) {
+                for (let segment of otherSnake.body) {
+                    if (head.x === segment.x && head.y === segment.y) {
+                        this.alive = false;
+                        return;
                     }
                 }
             }
@@ -83,7 +85,7 @@ export class Snake {
     }
 
     checkFood() {
-        for (let i = vars.foodManager.foods.length - 1; this.states.alive && i >= 0; i--) {
+        for (let i = vars.foodManager.foods.length - 1; this.alive && i >= 0; i--) {
             const food = vars.foodManager.foods[i];
 
             if (this.body[0].x === food.x && this.body[0].y === food.y) {
@@ -92,21 +94,18 @@ export class Snake {
                 }
 
                 vars.foodManager.foods.splice(i, 1);
-                this.states.foodCount++;
-                this.states.ate = true;
+                this.foodCount++;
             }
         }
 
-        if (this.states.ate) {
-            const getRequiredFoodCount = () => Math.min(5, Math.floor(this.body.length / 10) + 1);
+        const getRequiredFoodCount = () => Math.min(5, Math.floor(this.body.length / 10) + 1);
 
-            while (this.states.foodCount >= getRequiredFoodCount()) {
-                const tail = this.body[this.body.length - 1];
+        while (this.alive && this.foodCount >= getRequiredFoodCount()) {
+            const tail = this.body[this.body.length - 1];
 
-                this.states.foodCount -= getRequiredFoodCount();
-                this.lastBody.push({...tail});
-                this.body.push({...tail});
-            }
+            this.foodCount -= getRequiredFoodCount();
+            this.lastBody.push({...tail});
+            this.body.push({...tail});
         }
     }
 

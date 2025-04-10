@@ -1,115 +1,26 @@
-import { cfgs, vars, metricsInfo } from './global.js';
-import * as customLayers from './layers.js';
+import { cfgs, vars } from './global.js';
 import * as tf from '@tensorflow/tfjs';
-
-class ExperienceReplay {
-    constructor(maxSize = 2000) {
-        this.memories = [[], [], [], [], []];
-        this.newPushSize = [0, 0, 0, 0, 0];
-        this.maxSize = maxSize;
-    }
-
-    push(state, action, reward, nextState, done, type) {
-        this.memories[type].push({state, action, reward, nextState, done});
-        this.newPushSize[type]++;
-
-        if (this.memories[type].length >= this.maxSize) {
-            tf.dispose(this.memories[type].shift());
-        }
-    }
-
-    isValid(minSize = 500, minTotNewPushSize = 1000) {
-        for (let i = 0; i < this.memories.length; i++) {
-            if (this.memories[i].length < minSize) {
-                return false;
-            }
-        }
-
-        if (this.newPushSize.reduce((a, b) => a + b, 0) < minTotNewPushSize) {
-            return false;
-        }
-
-        return true;
-    }
-
-    sample(size) {
-        const samples = [];
-
-        for (let i = 0; i < size; i++) {
-            let type = Math.floor(Math.random() * 3);
-
-            if (type > 1) {
-                type = 2 + Math.floor(Math.random() * 3);
-            }
-
-            samples.push(this.memories[type][Math.floor(Math.random() * this.memories[type].length)]);
-        }
-
-        this.newPushSize = [0, 0, 0, 0, 0];
-
-        return samples;
-    }
-}
 
 export class DQNAgent {
     constructor() {
-        this.iter = 1;
-        this.gamma = 0.95;
         this.viewSize = 23;
-        this.epsilon = 1.0;
-        this.stateSize = 6;
+        this.stateSize = 5;
         this.actionSize = 4;
-        this.epsilonMin = 0.01;
-        this.epsilonDecay = 0.9975;
-        this.memory = new ExperienceReplay();
-
-        this.model = this.buildModel();
-        this.targetModel = this.buildModel();
-        this.targetModel.setWeights(this.model.getWeights());
+        this.model = undefined;
     }
 
     static async create(modelPath) {
         const agent = new DQNAgent();
 
-        if (modelPath) {
-            try {
-                agent.model = await tf.loadLayersModel(modelPath);
-                agent.targetModel = await tf.loadLayersModel(modelPath);
-            } catch(e) {
-                return undefined;
-            }
+        try {
+            agent.model = await tf.loadLayersModel(modelPath);
+        } catch(e) {
+            return undefined;
         }
 
-        agent.model.compile({optimizer: tf.train.adam(0.001), loss: 'meanSquaredError'});
         agent.model.summary();
 
         return agent;
-    }
-
-    buildModel() {
-        let input = tf.layers.input({shape: [this.viewSize, this.viewSize, this.stateSize]});
-        let layer = input;
-
-        layer = tf.layers.conv2d({filters: 32, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(layer);
-        layer = tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(layer);
-        layer = tf.layers.conv2d({filters: 64, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(layer);
-        layer = tf.layers.conv2d({filters: 64, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(layer);
-        layer = tf.layers.conv2d({filters: 64, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(layer);
-        layer = tf.layers.conv2d({filters: 128, strides: 2, kernelSize: 3, padding: 'same', activation: 'relu'}).apply(layer);
-        layer = tf.layers.conv2d({filters: 128, kernelSize: 3, activation: 'relu'}).apply(layer);
-        layer = tf.layers.flatten().apply(layer);
-
-        const sharedLayer = tf.layers.dense({units: 128, activation: 'relu'}).apply(layer);
-        const advantage = tf.layers.dense({units: this.actionSize}).apply(sharedLayer);
-        const value = tf.layers.dense({units: 1}).apply(sharedLayer);
-        const output = tf.layers.add().apply([value,
-            (new customLayers.Sub()).apply([
-                advantage,
-                (new customLayers.Mean(-1)).apply(advantage)
-            ])
-        ]);
-
-        return tf.model({inputs: input, outputs: output});
     }
 
     getState(snake) {
@@ -120,25 +31,23 @@ export class DQNAgent {
         const offsetX = halfViewSize - head.x;
         const offsetY = halfViewSize - head.y;
 
-        state.set(1, halfViewSize, halfViewSize, 0);
-
-        for (let i = snake.body.length - 1; i >= 1; i--) {
+        for (let i = snake.body.length - 1; i >= 0; i--) {
             const x = snake.body[i].x + offsetX;
             const y = snake.body[i].y + offsetY;
 
             if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                state.set(1 - 0.75 * i / snake.body.length, x, y, 1);
+                state.set(1 - 0.75 * i / snake.body.length, x, y, 0);
             }
         }
 
         for (const otherSnake of vars.snakes) {
-            if (otherSnake !== snake && otherSnake.states.alive) {
+            if (otherSnake !== snake && otherSnake.alive) {
                 for (let i = otherSnake.body.length - 1; i >= 0; i--) {
                     const x = otherSnake.body[i].x + offsetX;
                     const y = otherSnake.body[i].y + offsetY;
 
                     if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                        state.set(1 - 0.75 * i / otherSnake.body.length, x, y, 2);
+                        state.set(1 - 0.75 * i / otherSnake.body.length, x, y, 1);
                     }
                 }
             }
@@ -150,99 +59,47 @@ export class DQNAgent {
                 const gridY = y - offsetY;
 
                 if (gridX < 0 || gridX >= cfgs.gridWidth || gridY < 0 || gridY >= cfgs.gridHeight) {
-                    state.set(1, x, y, 3);
+                    state.set(1, y, x, 2);
                 }
             }
         }
+
+        let farFoods = {};
 
         for (const food of vars.foodManager.foods) {
             let x = food.x + offsetX;
             let y = food.y + offsetY;
 
             if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                state.set(1, x, y, 4);
+                state.set(1, x, y, 3);
             } else {
                 x -= halfViewSize;
                 y -= halfViewSize;
 
                 const radius = Math.sqrt(x * x + y * y);
 
-                x = Math.round(x / radius * (halfViewSize - 1)) + halfViewSize;
-                y = Math.round(y / radius * (halfViewSize - 1)) + halfViewSize;
+                x = Math.floor(x / radius * halfViewSize) + halfViewSize;
+                y = Math.floor(y / radius * halfViewSize) + halfViewSize;
 
                 if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                    state.set(Math.min(1, (1 - Math.min(0.99, radius / halfViewSize)) / 10 + state.get(x, y, 5)), x, y, 5);
+                    const key = x * 10000 + y;
+
+                    if (!(key in farFoods)) {
+                        farFoods[key] = 0;
+                    }
+
+                    farFoods[key] += (2 - Math.min(2, (radius - halfViewSize) / halfViewSize)) / 10;
                 }
             }
         }
 
+        for (let key in farFoods) {
+            const x = Math.floor(key / 10000);
+            const y = key % 10000;
+
+            state.set(Math.min(1, farFoods[key]), y, x, 4)
+        }
+
         return state.toTensor();
-    }
-
-    getAction(state, epsilon) {
-        return tf.tidy(() => {
-            return Math.random() < (epsilon === undefined ? this.epsilon : epsilon) ? Math.floor(Math.random() * this.actionSize) : this.model.predict(state.expandDims(0)).argMax(1).dataSync()[0];
-        });
-    }
-
-    async train(modelPath, sampleSize = 1024, batchSize = 32, epochs = 1) {
-        const samples = this.memory.sample(sampleSize);
-        const states = [], nextStates = [];
-
-        for (const sample of samples) {
-            states.push(sample.state.arraySync());
-            nextStates.push(sample.nextState.arraySync());
-        }
-
-        const stateTensor = tf.tensor4d(states);
-        const nextStateTensor = tf.tensor4d(nextStates);
-
-        const targetTensor = tf.tidy(() => {
-            const nextAction = this.model.predict(nextStateTensor).argMax(1).dataSync();
-            const nextValue = this.targetModel.predict(nextStateTensor).arraySync();
-            const targets = this.model.predict(stateTensor).arraySync();
-
-            for (let i = 0; i < sampleSize; i++) {
-                targets[i][samples[i].action] = samples[i].reward + (samples[i].done ? 0 : this.gamma * nextValue[i][nextAction[i]]);
-            }
-
-            return tf.tensor2d(targets);
-        });
-
-        await this.model.fit(stateTensor, targetTensor, {batchSize, epochs});
-
-        if (modelPath) {
-            await this.model.save(modelPath);
-        }
-
-        if (this.iter % 2 == 0) {
-            this.targetModel.setWeights(this.model.getWeights());
-        }
-
-        this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
-        tf.dispose([stateTensor, nextStateTensor, targetTensor]);
-
-        let collideWallCount = 0, collideSelfCount = 0, collideOtherSnakeCount = 0;
-        let avgLength = 0, avgLifeCount = 0;
-
-        for (const info of metricsInfo) {
-            if (info.type == 'collideWall') collideWallCount++;
-            if (info.type == 'collideSelf') collideSelfCount++;
-            if (info.type == 'collideOtherSnake') collideOtherSnakeCount++;
-
-            avgLength += info.length;
-            avgLifeCount += info.lifeCount;
-        }
-
-        console.log([
-            `[iter: ${this.iter++}]`,
-            `[gamma: ${this.gamma.toFixed(2)}]`,
-            `[epsilon: ${this.epsilon.toFixed(2)}]`,
-            `[avg length: ${(avgLength / metricsInfo.length).toFixed(2)}]`,
-            `[avg life count: ${(avgLifeCount / metricsInfo.length).toFixed(2)}]`,
-            `[collide wall: ${(collideWallCount / metricsInfo.length * 100).toFixed(2)}%]`,
-            `[collide self: ${(collideSelfCount / metricsInfo.length * 100).toFixed(2)}%]`,
-            `[collide other snake: ${(collideOtherSnakeCount / metricsInfo.length * 100).toFixed(2)}%]`
-        ].join('\n'));
     }
 };

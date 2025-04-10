@@ -14,14 +14,9 @@ window.addEventListener('load', async (ev) => {
     canvas.height = cfgs.gridHeight * cfgs.gridSize;
     canvas.width = cfgs.gridWidth * cfgs.gridSize;
 
-    let lastTimestamp = performance.now();
-    let playerDirection = 'right';
-    let gameplayInterval = 150;
-    let gameplayDeltaTime = 0;
-
     vars.foodManager = new FoodManager();
     vars.effectManager = new EffectManager();
-    vars.agent = await DQNAgent.create('https://raw.githubusercontent.com/rihothy/ai-snake/main/src/model/model.json') || await DQNAgent.create('src/model/model.json');
+    vars.agent = await DQNAgent.create('src/model/model.json') || await DQNAgent.create('https://raw.githubusercontent.com/rihothy/ai-snake/main/src/model/model.json');
 
     for (let i = 0; i < 5; i++) {
         vars.foodManager.generateFood();
@@ -34,18 +29,10 @@ window.addEventListener('load', async (ev) => {
     document.addEventListener('keydown', (ev) => {
         if (vars.snakes.length && vars.snakes[0].isPlayer) {
             switch (ev.key) {
-                case 'ArrowUp': case 'w': playerDirection = 'up'; break;
-                case 'ArrowDown': case 's': playerDirection = 'down'; break;
-                case 'ArrowLeft': case 'a': playerDirection = 'left'; break;
-                case 'ArrowRight': case'd': playerDirection = 'right'; break;
-            }
-        }
-
-        if (ev.key == 'Escape') {
-            const timeDilation = parseFloat(prompt('change game speed'));
-
-            if (!isNaN(timeDilation) && timeDilation > 0) {
-                cfgs.timeDilation = timeDilation;
+                case 'ArrowRight': case 'd': vars.snakes[0].setDirection(0); break;
+                case 'ArrowDown': case 's': vars.snakes[0].setDirection(1); break;
+                case 'ArrowLeft': case 'a': vars.snakes[0].setDirection(2); break;
+                case 'ArrowUp': case 'w': vars.snakes[0].setDirection(3); break;
             }
         }
     });
@@ -59,9 +46,12 @@ window.addEventListener('load', async (ev) => {
         }
     });
 
+    let lastTimestamp = performance.now();
+    let gameplayDeltaTime = 0;
+
     const tick = (timestamp) => {
-        if (timestamp - lastTimestamp > 2000) {
-            lastTimestamp = timestamp - gameplayInterval;
+        if (timestamp - lastTimestamp > 1000) {
+            lastTimestamp = timestamp - 150;
         }
 
         const deltaTime = (timestamp - lastTimestamp) * cfgs.timeDilation;
@@ -69,33 +59,46 @@ window.addEventListener('load', async (ev) => {
         gameplayDeltaTime += deltaTime;
         lastTimestamp = timestamp;
 
-        while (gameplayDeltaTime >= gameplayInterval) {
-            gameplayDeltaTime -= gameplayInterval;
+        while (gameplayDeltaTime >= 150) {
+            gameplayDeltaTime -= 150;
 
             tf.tidy(() => {
+                const states = [];
+
                 for (const snake of vars.snakes) {
                     if (!snake.isPlayer) {
-                        snake.move(['up', 'right', 'down', 'left'][vars.agent.getAction(vars.agent.getState(snake), 0)]);
-                    } else {
-                        snake.move(playerDirection);
+                        states.push(vars.agent.getState(snake).arraySync());
+                    }
+                }
+
+                if (states.length) {
+                    const [v, a] = vars.agent.model.predict(tf.tensor4d(states));
+                    const q = v.add(a.sub(a.mean(-1, true)));
+                    const actions = [...q.argMax(-1).dataSync()];
+
+                    for (const snake of vars.snakes) {
+                        if (!snake.isPlayer) {
+                            snake.setDirection(actions.shift());
+                        }
                     }
                 }
             });
 
+            vars.snakes.forEach(snake => snake.move());
             vars.snakes.forEach(snake => snake.checkCollision());
             vars.snakes.forEach(snake => snake.checkFood());
 
-            vars.foodManager.gameplayTick(gameplayInterval);
+            vars.foodManager.gameplayTick();
 
             for (let i = vars.snakes.length - 1; i >= 0; i--) {
-                if (!vars.snakes[i].states.alive) {
+                if (!vars.snakes[i].alive) {
                     for (let j = 0; j < vars.snakes[i].body.length; j++) {
                         const segment = vars.snakes[i].body[j];
 
                         vars.effectManager.createSnakeEffect(segment.x * cfgs.gridSize + cfgs.gridSize / 2, segment.y * cfgs.gridSize + cfgs.gridSize / 2, vars.snakes[i].color, j % 2 == 0);
 
                         if (j % 2 == 0) {
-                            vars.foodManager.delayGenerateFood(segment.x, segment.y, 1000);
+                            vars.foodManager.generateFood(segment.x, segment.y, 6);
                         }
                     }
 
@@ -112,7 +115,7 @@ window.addEventListener('load', async (ev) => {
 
         vars.foodManager.renderTick(deltaTime);
         vars.effectManager.renderTick(deltaTime);
-        vars.snakes.forEach(snake => {snake.animationProgress = gameplayDeltaTime / gameplayInterval; snake.renderTick(deltaTime);});
+        vars.snakes.forEach(snake => {snake.animationProgress = gameplayDeltaTime / 150; snake.renderTick(deltaTime);});
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         vars.foodManager.render(ctx);
