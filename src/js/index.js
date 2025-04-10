@@ -88,7 +88,35 @@ window.addEventListener('load', async (ev) => {
                 if (states.length) {
                     const [v, a] = vars.agent.model.predict(tf.tensor4d(states));
                     const q = v.add(a.sub(a.mean(-1, true)));
-                    const actions = [...q.argMax(-1).dataSync()];
+                    const mask = tf.buffer(q.shape);
+                    let i = 0;
+
+                    for (const snake of vars.snakes) {
+                        if (!snake.isPlayer) {
+                            for (let action = 0; action < 4; ++action) {
+                                if ((snake.direction - action + 4) % 4 == 2) {
+                                    continue;
+                                }
+
+                                const x = snake.body[0].x + [1, 0, -1, 0][action];
+                                const y = snake.body[0].y + [0, 1, 0, -1][action];
+
+                                if (x < 0 || x >= cfgs.gridWidth || y < 0 || y >= cfgs.gridHeight) {
+                                    continue;
+                                }
+
+                                if (vars.snakes.some(snake => snake.body.some(segment => segment.x === x && segment.y === y))) {
+                                    continue;
+                                }
+
+                                mask.set(999, i, action);
+                            }
+
+                            ++i;
+                        }
+                    }
+
+                    const actions = [...tf.add(q, tf.add(mask.toTensor(), -999)).argMax(-1).dataSync()];
 
                     for (const snake of vars.snakes) {
                         if (!snake.isPlayer) {

@@ -44,12 +44,8 @@ export class Snake {
     move() {
         const head = {...this.body[0]};
 
-        switch (this.nextDirection) {
-            case 0: ++head.x; break;
-            case 1: ++head.y; break;
-            case 2: --head.x; break;
-            case 3: --head.y; break;
-        }
+        head.x += [1, 0, -1, 0][this.nextDirection];
+        head.y += [0, 1, 0, -1][this.nextDirection];
 
         this.lastBody = this.body.map(curPos => ({...curPos}));
         this.direction = this.nextDirection;

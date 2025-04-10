@@ -31,25 +31,30 @@ export class DQNAgent {
         const offsetX = halfViewSize - head.x;
         const offsetY = halfViewSize - head.y;
 
-        for (let i = snake.body.length - 1; i >= 0; i--) {
-            const x = snake.body[i].x + offsetX;
-            const y = snake.body[i].y + offsetY;
+        const buildSnakeState = (body, channel) => {
+            let len = 0;
 
-            if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                state.set(1 - 0.75 * i / snake.body.length, x, y, 0);
+            for (let i = 1; i < body.length; ++i) {
+                if (body[i] != body[i - 1]) {
+                    len += 1;
+                }
             }
-        }
+
+            for (let i = body.length - 1; i >= 0; i--) {
+                const x = body[i].x + offsetX;
+                const y = body[i].y + offsetY;
+    
+                if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
+                    state.set(1 - 0.75 * Math.min(i, len) / Math.max(1, len), y, x, channel);
+                }
+            }
+        };
+
+        buildSnakeState(snake.body, 0);
 
         for (const otherSnake of vars.snakes) {
             if (otherSnake !== snake && otherSnake.alive) {
-                for (let i = otherSnake.body.length - 1; i >= 0; i--) {
-                    const x = otherSnake.body[i].x + offsetX;
-                    const y = otherSnake.body[i].y + offsetY;
-
-                    if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                        state.set(1 - 0.75 * i / otherSnake.body.length, x, y, 1);
-                    }
-                }
+                buildSnakeState(otherSnake, 1);
             }
         }
 
@@ -71,7 +76,7 @@ export class DQNAgent {
             let y = food.y + offsetY;
 
             if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                state.set(1, x, y, 3);
+                state.set(1, y, x, 3);
             } else {
                 x -= halfViewSize;
                 y -= halfViewSize;
