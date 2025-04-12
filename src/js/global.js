@@ -7,10 +7,11 @@ export const cfgs = {
     gridSize: 20,
     gridWidth: 32,
     gridHeight: 32,
-    timeDilation: 1,
+    timeDilation: 5,
 
     foodColor: 'rgb(156, 39, 176)',
     playerColor: 'rgb(76, 175, 80)',
+    // aiColors: ['rgb(244, 67, 54)']
     aiColors: ['rgb(244, 67, 54)', 'rgb(33, 150, 243)', 'rgb(255, 193, 7)', 'rgb(0, 188, 212)', 'rgb(233, 30, 99)']
 };
 

@@ -39,6 +39,51 @@ class ExperienceReplay:
         return samples, indices, (len(self.memories) * tf.convert_to_tensor(priors, 'float32')) ** (-self.beta)
 
 
+class NoisyDense(keras.layers.Layer):
+
+    def __init__(self, units, activation):
+        super(NoisyDense, self).__init__()
+        self.units = units
+        self.activation = keras.activations.get(activation)
+
+    def get_config(self):
+        config = super(NoisyDense, self).get_config()
+        config.update({
+            'units': self.units,
+            'activation': tf.keras.activations.serialize(self.activation)
+        })
+
+        return config
+
+    def build(self, input_shape):
+        self.input_dim = input_shape[-1]
+        self.mu_kernel = self.add_weight('mu_kernel', (self.input_dim, self.units), initializer='glorot_uniform', trainable=True)
+        self.sigma_kernel = self.add_weight('sigma_kernel', (self.input_dim, self.units), initializer=keras.initializers.Constant(0.5), trainable=True)
+        self.mu_bias = self.add_weight('mu_bias', (self.units,), initializer='zero', trainable=True)
+        self.sigma_bias = self.add_weight('sigma_bias', (self.units,), initializer=keras.initializers.Constant(0.5), trainable=True)
+        self.built = True
+
+    def scale_noise(self, size):
+        x = tf.random.normal((size,))
+        return tf.sign(x) * tf.sqrt(tf.abs(x))
+
+    def call(self, inputs):
+        if True:
+            epsilon_i = self.scale_noise(self.input_dim)
+            epsilon_j = self.scale_noise(self.units)
+
+            epsilon_kernel = tf.matmul(tf.expand_dims(epsilon_i, -1), tf.expand_dims(epsilon_j, 0))
+            epsilon_bias = self.scale_noise(self.units)
+
+            kernel = tf.add(self.mu_kernel, tf.multiply(self.sigma_kernel, epsilon_kernel))
+            bias = tf.add(self.mu_bias, tf.multiply(self.sigma_bias, epsilon_bias))
+        else:
+            kernel = self.mu_kernel
+            bias = self.mu_bias
+
+        return self.activation(tf.add(tf.matmul(inputs, kernel), bias))
+
+
 class DQNAgent:
 
     def __init__(self):
@@ -48,8 +93,8 @@ class DQNAgent:
         self.epsilon = 1
         self.stateSize = 5
         self.actionSize = 4
-        self.epsilonMin = 0.05
-        self.epsilonDecay = 0.9975
+        self.epsilonMin = 0.01
+        self.epsilonDecay = 0.9995
         self.memory = ExperienceReplay()
 
         self.model = self.createModel()
@@ -70,12 +115,17 @@ class DQNAgent:
 
         layer = keras.layers.Flatten()(layer)
         layer = keras.layers.Dense(128, 'relu')(layer)
+        # layer = NoisyDense(128, 'relu')(layer)
 
         v = keras.layers.Dense(64, 'relu')(layer)
         v = keras.layers.Dense(1, 'linear')(v)
+        # v = NoisyDense(64, 'relu')(layer)
+        # v = NoisyDense(1, 'linear')(v)
 
         a = keras.layers.Dense(64, 'relu')(layer)
         a = keras.layers.Dense(self.actionSize, 'linear')(a)
+        # a = NoisyDense(64, 'relu')(layer)
+        # a = NoisyDense(self.actionSize, 'linear')(a)
 
         model = keras.Model(input, [v, a])
         model.compile()

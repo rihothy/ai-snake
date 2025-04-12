@@ -47,33 +47,39 @@ cfg.agent.model.summary()
 while True:
     if len(cfg.snakes):
         states = [cfg.agent.getState(snake) for snake in cfg.snakes]
-        values = cfg.agent.forward(cfg.agent.model, tf.stack(states)).numpy()
+        values = cfg.agent.forward(cfg.agent.model, tf.stack(states))
+        actions = tf.argmax(values, -1).numpy()
+        values = values.numpy()
 
         for i, snake in enumerate(cfg.snakes):
-            actions = []
+            if random.random() < cfg.agent.epsilon:
+                invalidActions = []
+                validActions = []
 
-            for action in range(4):
-                if (snake.direction - action + 4) % 4 == 2:
-                    continue
+                for tempAction in range(4):
+                    direction = snake.direction if (snake.direction - tempAction + 4) % 4 == 2 else tempAction
+                    x, y = snake.body[0]
+                    x, y = x + [1, 0, -1, 0][direction], y + [0, 1, 0, -1][direction]
 
-                x, y = snake.body[0]
-                x, y = x + [1, 0, -1, 0][action], y + [0, 1, 0, -1][action]
+                    if x < 0 or x >= cfg.gridWidth or y < 0 or y >= cfg.gridHeight:
+                        invalidActions.append(tempAction)
+                    elif any(any((tx == x and ty == y) for tx, ty in snake.body[:-1]) for snake in cfg.snakes):
+                        invalidActions.append(tempAction)
+                    else:
+                        validActions.append(tempAction)
 
-                if x < 0 or x >= cfg.gridWidth or y < 0 or y >= cfg.gridHeight:
-                    continue
+                if len(invalidActions) == 4:
+                    action = random.randint(0, 3)
+                else:
+                    for tempAction in invalidActions:
+                        prior = (abs(-2.01 - float(values[i, tempAction])) + 1e-6) ** cfg.agent.memory.alpha
+                        cfg.agent.memory.push(states[i], tempAction, -2.01, Snake.zeroState, True, prior)
 
-                if any(any((tx == x and ty == y) for tx, ty in snake.body[:-1]) for snake in cfg.snakes):
-                    continue
+                    action = random.choice(validActions)
+            else:
+                action = int(actions[i])
 
-                actions.append(action)
-
-            actions = actions if len(actions) else [0, 1, 2, 3]
-
-            for action in range(4):
-                if action not in actions:
-                    values[i, action] = -999
-
-            action = random.choice(actions) if random.random() < cfg.agent.epsilon else int(np.argmax(values[i]))
+            # action = random.randint(0, 3) if random.random() < cfg.agent.epsilon else int(actions[i])
             snake.rememberStageA(states[i], action, float(values[i, action]))
             snake.setDirection(action)
 
@@ -118,3 +124,6 @@ while True:
 
         if iter % 5 == 0:
             cfg.agent.model.save('model/model.h5')
+
+        if iter % 1000 == 0:
+            cfg.agent.model.save(f'model/model-{iter // 1000}.h5')

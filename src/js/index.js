@@ -18,19 +18,19 @@ window.addEventListener('load', async (ev) => {
     vars.effectManager = new EffectManager();
     vars.agent = await DQNAgent.create('src/model/model.json') || await DQNAgent.create('https://raw.githubusercontent.com/rihothy/ai-snake/main/src/model/model.json');
 
-    tf.tidy(() => {
-        for (let i = 0; i < 5; ++i) {
-            vars.agent.model.predict(tf.ones([5, vars.agent.viewSize, vars.agent.viewSize, vars.agent.stateSize]));
-        }
+    // tf.tidy(() => {
+    //     for (let i = 0; i < 5; ++i) {
+    //         vars.agent.model.predict(tf.ones([5, vars.agent.viewSize, vars.agent.viewSize, vars.agent.stateSize]));
+    //     }
 
-        const startTime = performance.now();
+    //     const startTime = performance.now();
 
-        for (let i = 0; i < 10; ++i) {
-            vars.agent.model.predict(tf.ones([5, vars.agent.viewSize, vars.agent.viewSize, vars.agent.stateSize]));
-        }
+    //     for (let i = 0; i < 10; ++i) {
+    //         vars.agent.model.predict(tf.ones([5, vars.agent.viewSize, vars.agent.viewSize, vars.agent.stateSize]));
+    //     }
 
-        cfgs.timeDilation = Math.min(7.5, 100 / ((performance.now() - startTime) / 10));
-    });
+    //     cfgs.timeDilation = Math.min(7.5, 100 / ((performance.now() - startTime) / 10));
+    // });
 
     for (let i = 0; i < 5; ++i) {
         vars.foodManager.generateFood();
@@ -93,6 +93,8 @@ window.addEventListener('load', async (ev) => {
 
                     for (const snake of vars.snakes) {
                         if (!snake.isPlayer) {
+                            const invalidActions = [];
+
                             for (let action = 0; action < 4; ++action) {
                                 if ((snake.direction - action + 4) % 4 == 2) {
                                     continue;
@@ -102,21 +104,28 @@ window.addEventListener('load', async (ev) => {
                                 const y = snake.body[0].y + [0, 1, 0, -1][action];
 
                                 if (x < 0 || x >= cfgs.gridWidth || y < 0 || y >= cfgs.gridHeight) {
+                                    invalidActions.push(action);
                                     continue;
                                 }
 
                                 if (vars.snakes.some(snake => snake.body.some(segment => segment.x === x && segment.y === y))) {
+                                    invalidActions.push(action);
                                     continue;
                                 }
+                            }
 
-                                mask.set(999, i, action);
+                            if (invalidActions.length < 4) {
+                                for (let action of invalidActions) {
+                                    mask.set(-999, i, action);
+                                }
                             }
 
                             ++i;
                         }
                     }
 
-                    const actions = [...tf.add(q, tf.add(mask.toTensor(), -999)).argMax(-1).dataSync()];
+                    // const actions = [...tf.add(q, mask.toTensor()).argMax(-1).dataSync()];
+                    const actions = [...q.argMax(-1).dataSync()];
 
                     for (const snake of vars.snakes) {
                         if (!snake.isPlayer) {

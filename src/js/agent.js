@@ -40,7 +40,7 @@ export class DQNAgent {
                 }
             }
 
-            for (let i = body.length - 1; i >= 0; i--) {
+            for (let i = body.length - 1; i >= 0; --i) {
                 const x = body[i].x + offsetX;
                 const y = body[i].y + offsetY;
     
@@ -54,7 +54,7 @@ export class DQNAgent {
 
         for (const otherSnake of vars.snakes) {
             if (otherSnake !== snake && otherSnake.alive) {
-                buildSnakeState(otherSnake, 1);
+                buildSnakeState(otherSnake.body, 1);
             }
         }
 

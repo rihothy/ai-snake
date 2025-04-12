@@ -21,7 +21,8 @@ class Snake:
             if not cfg.checkPositionOccupied(x, y):
                 break
 
-        self.body = [(x, y) for _ in range(3 + round(length * (1 - getNonlinearProb(random.random()))))]
+        # self.body = [(x, y) for _ in range(3 + round(length * (1 - getNonlinearProb(random.random()))))]
+        self.body = [(x, y) for _ in range(3, 20)]
         self.direction = self.nextDirection = 0
         self.survivalCount = 0
         self.foodCount = 0
@@ -46,7 +47,7 @@ class Snake:
         gamma = cfg.agent.gamma
 
         reward, mode = -0.1, 0
-        if self.ate: reward, mode = reward + 2, 1
+        if self.ate: reward, mode = reward + 1, 1
         if not self.alive: reward, mode = reward - 2, 2
 
         for i in range(-1, -steps, -1):
@@ -66,11 +67,11 @@ class Snake:
             for i in range(len(self.trajectory)):
                 state, action, value, reward, nextState, nextValue, done, mode = self.trajectory[i]
 
-                if mode or i >= len(self.trajectory) - 50 or random.random() < getNonlinearProb((i + 1) / (len(self.trajectory) - 50)):
-                    if cfg.gridWidth != cfg.gridHeight and random.random() < 0.5:
-                        state, nextState, action = np.rot90(state), np.rot90(nextState), (action + 3) % 4
+                # if True or mode or i >= len(self.trajectory) - 50 or random.random() < getNonlinearProb((i + 1) / (len(self.trajectory) - 50)):
+                #     if cfg.gridWidth != cfg.gridHeight and random.random() < 0.5:
+                #         state, nextState, action = np.rot90(state), np.rot90(nextState), (action + 3) % 4
 
-                    cfg.agent.memory.push(state, action, reward, nextState, done, (abs(reward + (gamma ** steps) * nextValue - value) + 1e-6) ** cfg.agent.memory.alpha)
+                cfg.agent.memory.push(state, action, reward, nextState, done, (abs(reward + (gamma ** steps) * nextValue - value) + 1e-6) ** cfg.agent.memory.alpha)
 
     def setDirection(self, newDirection):
         self.survivalCount += 1
