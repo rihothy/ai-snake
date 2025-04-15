@@ -4,25 +4,66 @@ import numpy as np
 import random
 import math
 
-from snake import Snake
+class ExperienceReplay:
 
-class PPOAgent:
+    def __init__(self, maxSize = 100000):
+        self.maxSize = maxSize
+        self.tempMemories = []
+        self.memories = []
+        self.priors = []
+        self.newSize = 0
+        self.alpha = 0.6
+        self.beta = 0.4
+
+    def tempPush(self, state, action, reward, nextState, done, prior):
+        self.tempMemories.append((state, action, reward, nextState, done, prior))
+        self.newSize += 1
+
+    def push(self, size):
+        random.shuffle(self.tempMemories)
+
+        for _ in range(size):
+            state, action, reward, nextState, done, prior = self.tempMemories.pop()
+            self.newSize -= 1
+
+            self.memories.append((state, action, reward, nextState, done))
+            self.priors.append(prior)
+
+            if len(self.memories) > self.maxSize:
+                self.memories.pop(0)
+                self.priors.pop(0)
+
+    def sample(self, size):
+        indices = random.choices(range(len(self.memories)), self.priors, k=size)
+        totPrior = sum(self.priors)
+        samples = []
+        priors = []
+
+        for index in indices:
+            samples.append(self.memories[index])
+            priors.append(self.priors[index] / totPrior)
+
+        return samples, indices, (len(self.memories) * tf.convert_to_tensor(priors, 'float32')) ** (-self.beta)
+
+
+class DQNAgent:
 
     def __init__(self):
-        self.iter = 0
         self.steps = 3
-        self.gamma = 0.99
-        self.lambd = 0.95
+        self.gamma = 0.95
         self.viewSize = 23
+        self.epsilon = 1
         self.stateSize = 5
         self.actionSize = 3
-        self.maxGradNorm = 0.5
-        self.entropyCoef = 0.01
-
-        self.buffer = []
-        self.writer = tf.summary.create_file_writer('log/')
+        self.epsilonMin = 0.01
+        self.epsilonDecay = 0.9995
+        self.memory = ExperienceReplay()
 
         self.model = self.createModel()
+        self.targetModel = self.createModel()
+        self.targetModel.set_weights(self.model.get_weights())
+
+        self.optimizer = keras.optimizers.Adam()
 
     def createModel(self):
         input = layer = keras.Input((self.viewSize, self.viewSize, self.stateSize))
@@ -37,13 +78,20 @@ class PPOAgent:
         layer = keras.layers.Flatten()(layer)
         layer = keras.layers.Dense(128, 'relu')(layer)
 
-        prob = keras.layers.Dense(self.actionSize, 'softmax')(keras.layers.Dense(64, 'relu')(layer))
-        value = keras.layers.Dense(1, 'linear')(keras.layers.Dense(64, 'relu')(layer))
+        v = keras.layers.Dense(64, 'relu')(layer)
+        v = keras.layers.Dense(1, 'linear')(v)
 
-        model = keras.Model(input, [prob, value])
-        model.compile(keras.optimizers.Adam(2.5e-4))
+        a = keras.layers.Dense(64, 'relu')(layer)
+        a = keras.layers.Dense(self.actionSize, 'linear')(a)
+
+        model = keras.Model(input, [v, a])
+        model.compile()
 
         return model
+
+    def forward(self, model, state):
+        v, a = model(state)
+        return v + (a - tf.reduce_mean(a, -1, True))
 
     def getGameState(self, gridWidth, gridHeight, snakes, foods):
         state = np.zeros((gridHeight, gridWidth, 2), 'float32')
@@ -112,51 +160,41 @@ class PPOAgent:
 
         return tf.convert_to_tensor(np.rot90(state, snake.direction))
 
-    def train(self, epochs=4, sampleSize=4096, batchSize=32):
-        if len(self.buffer) < sampleSize:
+    def train(self, sampleSize = 1024, batchSize = 32):
+        if len(self.memory.memories) < sampleSize:
             return
 
-        self.iter += 1
-        random.shuffle(self.buffer)
-        sampleSize = len(self.buffer) // batchSize * batchSize
-        self.buffer = self.buffer[:sampleSize]
-
-        state, adv, action, prob, value = zip(*self.buffer)
-        self.buffer = []
+        samples, indices, weight = self.memory.sample(sampleSize)
+        state, action, reward, nextState, done = zip(*samples)
 
         state = tf.stack(state)
-        adv = tf.stack(adv)
         action = tf.stack(action)
-        prob = tf.stack(prob)
-        value = tf.stack(value)
+        reward = tf.stack(reward)
+        nextState = tf.stack(nextState)
+        done = tf.cast(tf.stack(done), 'float32')
 
-        adv = (adv - tf.reduce_mean(adv)) / (tf.math.reduce_std(adv) + 1e-6)
+        nextQ = self.forward(self.targetModel, nextState)
+        nextAction = tf.argmax(self.forward(self.model, nextState), -1)
 
-        for _ in range(epochs):
-            for i in range(0, sampleSize, batchSize):
-                with tf.GradientTape() as tape:
-                    newProb, newValue = self.model(state[i:i+batchSize])
-                    entropyLoss = tf.reduce_mean(-tf.reduce_sum(newProb * tf.math.log(newProb + 1e-10), axis=1))
+        targetQ = reward + (1 - done) * (self.gamma ** self.steps) * tf.gather_nd(nextQ, tf.transpose([tf.range(sampleSize, dtype='int64'), nextAction]))
 
-                    newProb = tf.gather(newProb, action[i:i+batchSize], batch_dims=1)
-                    ratio = tf.exp(tf.math.log(newProb) - tf.math.log(prob[i:i+batchSize]))
-                    ppoLoss = tf.reduce_mean(-tf.minimum(ratio * adv[i:i+batchSize], tf.clip_by_value(ratio, 0.8, 1.2) * adv[i:i+batchSize]))
+        for i in range(0, sampleSize, batchSize):
+            with tf.GradientTape() as tape:
+                y_pred = tf.gather_nd(self.forward(self.model, state[i:i+batchSize]), tf.stack([tf.range(batchSize), action[i:i+batchSize]], 1))
+                y_true = targetQ[i:i+batchSize]
 
-                    valueLoss = keras.losses.mse(value[i:i+batchSize], newValue)
+                error = y_pred - y_true
+                abs_error = tf.abs(error)
+                loss = tf.reduce_mean(tf.where(abs_error <= 1, 0.5 * tf.square(error), abs_error - 0.5) * weight[i:i+batchSize])
 
-                    loss = ppoLoss - self.entropyCoef * entropyLoss + 0.5 * valueLoss
+            gradients = tape.gradient(loss, self.model.trainable_weights)
+            gradients, _ = tf.clip_by_global_norm(gradients, 10)
+            self.optimizer.apply_gradients(zip(gradients, self.model.trainable_weights))
 
-                    gradients = tape.gradient(loss, self.model.trainable_weights)
-                    gradients, _ = tf.clip_by_global_norm(gradients, self.maxGradNorm)
-                    self.model.optimizer.apply_gradients(zip(gradients, self.model.trainable_weights))
+            priors = tf.pow(tf.abs(y_true - y_pred) + 1e-6, self.memory.alpha).numpy()
 
-        with self.writer.as_default():
-            cnts, ates, *_ = zip(*Snake.deadInfo)
-            cnts, ates = sum(cnts) / len(cnts), sum(ates) / len(ates)
-            print(f'iter: {self.iter}, survival: {cnts:.2f}, ate: {ates:.2f}')
+            for j, index in enumerate(indices[i:i+batchSize]):
+                self.memory.priors[index] = priors[j]
 
-            tf.summary.scalar('life time', cnts, self.iter)
-            tf.summary.scalar('ate count', ates, self.iter)
-
-        if self.iter % 10 == 0:
-            self.model.save('model/model.h5')
+        self.epsilon = max(self.epsilon * self.epsilonDecay, self.epsilonMin)
+        self.targetModel.set_weights([w1 * 0.25 + w2 * 0.75 for w1, w2 in zip(self.model.get_weights(), self.targetModel.get_weights())])

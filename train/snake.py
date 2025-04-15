@@ -1,14 +1,18 @@
 from collections import deque
 import tensorflow as tf
+import math
+
+deadInfo = deque(maxlen=500)
+getNonlinearProb = lambda x: ((math.sin((x ** 4) * math.pi - math.pi / 2) + 1) / 2 + 0.05) / 1.05
 
 class Snake:
 
     zeroState = tf.zeros((23, 23, 5), 'float32')
-    deadInfo = deque(maxlen=500)
 
     def __init__(self, game):
         x, y = game.getValidPos()
 
+        # self.body = [(x, y) for _ in range(3 + round(length * (1 - getNonlinearProb(random.random()))))]
         self.body = [(x, y) for _ in range(3, 20)]
         self.survivalCount = 0
         self.foodCount = 0
@@ -18,34 +22,45 @@ class Snake:
         self.alive = True
         self.ate = False
 
-        self.states = []
         self.trajectory = []
 
-    def rememberStageA(self, state, action, prob, value):
-        self.state, self.action, self.prob, self.value = state, action, prob, value
-        self.states.append(state)
+    def rememberStageA(self, state, action, value):
+        self.state, self.action, self.value = state, action, value
 
     def rememberStageB(self, agent):
         if not hasattr(self, 'state'):
             return
 
-        reward = (1 if self.ate else -0.1) if self.alive else -5
-        self.trajectory.append((self.state, self.action, self.prob, self.value, reward, not self.alive))
+        steps = agent.steps
+        gamma = agent.gamma
+
+        reward = -0.1
+        if self.ate: reward = 1
+        if not self.alive: reward = -5
+
+        for i in range(-1, -steps, -1):
+            if len(self.trajectory) >= abs(i):
+                self.trajectory[i][3] += (gamma ** abs(i)) * reward
+
+        if len(self.trajectory) >= steps:
+            self.trajectory[-steps][4] = self.state
+            self.trajectory[-steps][5] = self.value
+            self.trajectory[-steps][6] = False
+
+        #     0,      1,     2,      3,         4,         5,    6     7
+        # state, action, value, reward, nextState, nextValue, done, mode
+        self.trajectory.append([self.state, self.action, self.value, reward, Snake.zeroState, 0, True])
 
         if not self.alive:
-            deltas = []
-            advs = [0]
+            for i in range(len(self.trajectory)):
+                state, action, value, reward, nextState, nextValue, done = self.trajectory[i]
 
-            for i, (_, _, _, value, reward, done) in enumerate(self.trajectory):
-                deltas.append(reward + (0 if done else agent.gamma * self.trajectory[i + 1][3]) - value)
+                # if cfg.gridWidth != cfg.gridHeight and random.random() < 0.5:
+                    # state, nextState, action = np.rot90(state), np.rot90(nextState), (action + 3) % 4
 
-            for delta, (*_, done) in zip(deltas[::-1], self.trajectory[::-1]):
-                advs.append(delta + agent.gamma * agent.lambd * advs[-1] * ~done)
+                # if True or mode or i >= len(self.trajectory) - 50 or random.random() < getNonlinearProb((i + 1) / (len(self.trajectory) - 50)):
 
-            advs = advs[::-1][:-1]
-
-            for adv, (state, action, prob, value, *_) in zip(advs, self.trajectory):
-                agent.buffer.append((state, adv, action, prob, adv + value))
+                agent.memory.tempPush(state, action, reward, nextState, done, (abs(reward + (gamma ** steps) * nextValue - value) + 1e-6) ** agent.memory.alpha)
 
     def setDirection(self, action):
         self.direction = (self.direction + action + 4) % 4
@@ -62,13 +77,13 @@ class Snake:
         hx, hy = self.body[0]
 
         if hx < 0 or hx >= gridWidth or hy < 0 or hy >= gridHeight:
-            Snake.deadInfo.append((self.survivalCount, self.ateCount, self.growCount, len(self.body)))
+            deadInfo.append((self.survivalCount, self.ateCount, self.growCount, len(self.body)))
             self.alive = False
             return
 
         for x, y in self.body[1:]:
             if x == hx and y == hy:
-                Snake.deadInfo.append((self.survivalCount, self.ateCount, self.growCount, len(self.body)))
+                deadInfo.append((self.survivalCount, self.ateCount, self.growCount, len(self.body)))
                 self.alive = False
                 return
 
@@ -76,7 +91,7 @@ class Snake:
             if otherSnake is not self:
                 for x, y in otherSnake.body:
                     if x == hx and y == hy:
-                        Snake.deadInfo.append((self.survivalCount, self.ateCount, self.growCount, len(self.body)))
+                        deadInfo.append((self.survivalCount, self.ateCount, self.growCount, len(self.body)))
                         self.alive = False
                         return
 
