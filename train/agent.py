@@ -97,7 +97,7 @@ class DQNAgent:
         state = np.zeros((gridHeight, gridWidth, 2), 'float32')
 
         for snake in snakes:
-            for i, (x, y) in enumerate(snake.body[::-1]):
+            for i, (x, y) in reversed(list(enumerate(snake.body))):
                 state[y, x, 0] = 1 - 0.75 * i / len(snake.body)
 
         for x, y in foods:
@@ -119,7 +119,7 @@ class DQNAgent:
         lwy, rwy = max(0, hy - halfViewSize), min(gridHeight, hy + halfViewSize + 1)
         lwx, rwx = max(0, hx - halfViewSize), min(gridWidth, hx + halfViewSize + 1)
 
-        for i, (x, y) in enumerate(snake.body[::-1]):
+        for i, (x, y) in reversed(list(enumerate(snake.body))):
             x += offsetX
             y += offsetY
 

@@ -5,7 +5,6 @@ export class DQNAgent {
     constructor() {
         this.viewSize = 23;
         this.stateSize = 5;
-        this.actionSize = 4;
         this.model = undefined;
     }
 
@@ -31,21 +30,27 @@ export class DQNAgent {
         const offsetX = halfViewSize - head.x;
         const offsetY = halfViewSize - head.y;
 
-        const buildSnakeState = (body, channel) => {
-            let len = 0;
+        const setState = (value, x, y, channel) => {
+            const dir = snake.direction;
 
-            for (let i = 1; i < body.length; ++i) {
-                if (body[i] != body[i - 1]) {
-                    len += 1;
-                }
+            if (dir == 0) {
+                state.set(value, y, x, channel)
+            } else if (dir == 1) {
+                state.set(value, this.viewSize - x - 1, y, channel);
+            } else if (dir == 2) {
+                state.set(value, this.viewSize - y - 1, this.viewSize - x - 1, channel);
+            } else if (dir == 3) {
+                state.set(value, x, this.viewSize - y - 1, channel);
             }
+        };
 
+        const buildSnakeState = (body, channel) => {
             for (let i = body.length - 1; i >= 0; --i) {
                 const x = body[i].x + offsetX;
                 const y = body[i].y + offsetY;
     
                 if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                    state.set(1 - 0.75 * Math.min(i, len) / Math.max(1, len), y, x, channel);
+                    setState(1 - 0.75 * i / body.length, x, y, channel)
                 }
             }
         };
@@ -53,9 +58,7 @@ export class DQNAgent {
         buildSnakeState(snake.body, 0);
 
         for (const otherSnake of vars.snakes) {
-            if (otherSnake !== snake && otherSnake.alive) {
-                buildSnakeState(otherSnake.body, 1);
-            }
+            buildSnakeState(otherSnake.body, 1);
         }
 
         for (let y = 0; y < this.viewSize; ++y) {
@@ -64,7 +67,7 @@ export class DQNAgent {
                 const gridY = y - offsetY;
 
                 if (gridX < 0 || gridX >= cfgs.gridWidth || gridY < 0 || gridY >= cfgs.gridHeight) {
-                    state.set(1, y, x, 2);
+                    setState(1, x, y, 2);
                 }
             }
         }
@@ -76,7 +79,7 @@ export class DQNAgent {
             let y = food.y + offsetY;
 
             if (x >= 0 && x < this.viewSize && y >= 0 && y < this.viewSize) {
-                state.set(1, y, x, 3);
+                setState(1, x, y, 3);
             } else {
                 x -= halfViewSize;
                 y -= halfViewSize;
@@ -102,7 +105,7 @@ export class DQNAgent {
             const x = Math.floor(key / 10000);
             const y = key % 10000;
 
-            state.set(Math.min(1, farFoods[key]), y, x, 4)
+            setState(Math.min(1, farFoods[key]), x, y, 4)
         }
 
         return state.toTensor();

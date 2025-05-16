@@ -1,16 +1,15 @@
 import { cfgs, vars } from './global.js';
 
 export class Snake {
-    constructor(color, isPlayer = false, x = undefined, y = undefined) {
-        while (!isPlayer && (x === undefined || y === undefined || vars.checkPositionOccupied(x, y))) {
+    constructor(color, x = undefined, y = undefined) {
+        while (x === undefined || y === undefined || vars.checkPositionOccupied(x, y)) {
             y = Math.floor(Math.random() * cfgs.gridHeight);
             x = Math.floor(Math.random() * cfgs.gridWidth);
         }
 
-        this.direction = this.nextDirection = 0;
         this.body = [{x, y}, {x, y}, {x, y}];
-        this.isPlayer = isPlayer;
         this.color = color;
+        this.direction = 0;
         this.foodCount = 0;
         this.alive = true;
 
@@ -20,35 +19,32 @@ export class Snake {
         this.rotation = 0;
     }
 
-    setDirection(newDirection) {
-        if ((this.direction - newDirection + 4) % 4 != 2) {
-            switch (newDirection) {
-                case 0: this.targetRotation = 0; break;
-                case 1: this.targetRotation = Math.PI / 2; break;
-                case 2: this.targetRotation = Math.PI; break;
-                case 3: this.targetRotation = -Math.PI / 2; break;
-            }
+    setDirection(action) {
+        this.direction = (this.direction + action + 4) % 4;
 
-            while (this.targetRotation < this.rotation - Math.PI) {
-                this.targetRotation += Math.PI * 2;
-            }
+        switch (this.direction) {
+            case 0: this.targetRotation = 0; break;
+            case 1: this.targetRotation = Math.PI / 2; break;
+            case 2: this.targetRotation = Math.PI; break;
+            case 3: this.targetRotation = -Math.PI / 2; break;
+        }
 
-            while (this.targetRotation > this.rotation + Math.PI) {
-                this.targetRotation -= Math.PI * 2;
-            }
+        while (this.targetRotation < this.rotation - Math.PI) {
+            this.targetRotation += Math.PI * 2;
+        }
 
-            this.nextDirection = newDirection;
+        while (this.targetRotation > this.rotation + Math.PI) {
+            this.targetRotation -= Math.PI * 2;
         }
     }
 
     move() {
         const head = {...this.body[0]};
 
-        head.x += [1, 0, -1, 0][this.nextDirection];
-        head.y += [0, 1, 0, -1][this.nextDirection];
+        head.x += [1, 0, -1, 0][this.direction];
+        head.y += [0, 1, 0, -1][this.direction];
 
         this.lastBody = this.body.map(curPos => ({...curPos}));
-        this.direction = this.nextDirection;
         this.body.unshift(head);
         this.body.pop();
     }

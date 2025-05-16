@@ -1,9 +1,8 @@
 from collections import deque
 import tensorflow as tf
-import math
+import random
 
-deadInfo = deque(maxlen=500)
-getNonlinearProb = lambda x: ((math.sin((x ** 4) * math.pi - math.pi / 2) + 1) / 2 + 0.05) / 1.05
+deadInfo = deque(maxlen=5000)
 
 class Snake:
 
@@ -12,8 +11,8 @@ class Snake:
     def __init__(self, game):
         x, y = game.getValidPos()
 
-        # self.body = [(x, y) for _ in range(3 + round(length * (1 - getNonlinearProb(random.random()))))]
-        self.body = [(x, y) for _ in range(3, 20)]
+        self.body = [(x, y) for _ in range(random.randint(3, 32))]
+        # self.body = [(x, y) for _ in range(3)]
         self.survivalCount = 0
         self.foodCount = 0
         self.direction = 0
@@ -36,7 +35,7 @@ class Snake:
 
         reward = -0.1
         if self.ate: reward = 1
-        if not self.alive: reward = -5
+        if not self.alive: reward = -2.5
 
         for i in range(-1, -steps, -1):
             if len(self.trajectory) >= abs(i):
@@ -47,19 +46,17 @@ class Snake:
             self.trajectory[-steps][5] = self.value
             self.trajectory[-steps][6] = False
 
-        #     0,      1,     2,      3,         4,         5,    6     7
-        # state, action, value, reward, nextState, nextValue, done, mode
+        #     0,      1,     2,      3,         4,         5,    6
+        # state, action, value, reward, nextState, nextValue, done
         self.trajectory.append([self.state, self.action, self.value, reward, Snake.zeroState, 0, True])
 
         if not self.alive:
             for i in range(len(self.trajectory)):
+                if i < len(self.trajectory) - 128:
+                    if random.random() > ((i / (len(self.trajectory) - 128)) ** 2) * 0.95 + 0.05:
+                        continue
+
                 state, action, value, reward, nextState, nextValue, done = self.trajectory[i]
-
-                # if cfg.gridWidth != cfg.gridHeight and random.random() < 0.5:
-                    # state, nextState, action = np.rot90(state), np.rot90(nextState), (action + 3) % 4
-
-                # if True or mode or i >= len(self.trajectory) - 50 or random.random() < getNonlinearProb((i + 1) / (len(self.trajectory) - 50)):
-
                 agent.memory.tempPush(state, action, reward, nextState, done, (abs(reward + (gamma ** steps) * nextValue - value) + 1e-6) ** agent.memory.alpha)
 
     def setDirection(self, action):
