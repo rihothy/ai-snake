@@ -21,6 +21,12 @@ window.addEventListener('load', async (ev) => {
     vars.effectManager = cfgs.fastMode ? undefined : new EffectManager();
     vars.agent = await DQNAgent.create('src/model/model.json') || await DQNAgent.create('https://raw.githubusercontent.com/rihothy/ai-snake/main/src/model/model.json');
 
+    tf.tidy(() => {
+        for (let i = 1; i <= 5; ++i) {
+            vars.agent.model.predict(tf.ones([i, 23, 23, 5]));
+        }
+    });
+
     for (let i = 0; i < 5; ++i) {
         vars.foodManager.generateFood();
     }
