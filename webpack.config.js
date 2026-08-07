@@ -1,7 +1,7 @@
 const TerserPlugin = require("terser-webpack-plugin");
 const path = require('path');
 
-module.exports = {
+module.exports = (env, argv) => ({
   entry: {
     'index': './src/js/index.js',
   },
@@ -20,7 +20,9 @@ module.exports = {
     ],
   },
 
-  mode: 'development',
+  mode: argv.mode || 'development',
 
-  devtool: 'inline-source-map'
-}; 
+  // Inline source maps massively inflate the production bundle (~18MB).
+  // Keep them for development, omit them in the release build.
+  devtool: argv.mode === 'production' ? false : 'inline-source-map'
+}); 

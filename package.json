@@ -19,6 +19,7 @@
   "homepage": "https://github.com/rihothy/ai-snake#readme",
   "devDependencies": {
     "@tensorflow/tfjs": "^4.22.0",
+    "terser-webpack-plugin": "^5.6.1",
     "webpack": "^5.98.0",
     "webpack-cli": "^6.0.1"
   }

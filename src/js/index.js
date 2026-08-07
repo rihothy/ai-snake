@@ -61,8 +61,37 @@ window.addEventListener('load', async (ev) => {
                 if (states.length) {
                     const [v, a] = vars.agent.model.predict(tf.tensor4d(states));
                     const q = v.add(a.sub(a.mean(-1, true)));
+                    const qArr = q.arraySync();
 
-                    const actions = [...q.argMax(-1).dataSync()];
+                    const actions = [];
+                    for (let i = 0; i < vars.snakes.length; ++i) {
+                        const mask = vars.agent.getMask(vars.snakes[i]);
+                        const row = qArr[i];
+                        let best = -Infinity;
+                        let bestA = 0;
+                        let anyValid = false;
+
+                        for (let act = 0; act < 3; ++act) {
+                            if (mask[act] && row[act] > best) {
+                                best = row[act];
+                                bestA = act;
+                                anyValid = true;
+                            }
+                        }
+
+                        if (!anyValid) {
+                            // Every action is lethal: fall back to the
+                            // least-bad raw Q value.
+                            for (let act = 0; act < 3; ++act) {
+                                if (row[act] > best) {
+                                    best = row[act];
+                                    bestA = act;
+                                }
+                            }
+                        }
+
+                        actions.push(bestA);
+                    }
 
                     for (const snake of vars.snakes) {
                         snake.setDirection(actions.shift() - 1);

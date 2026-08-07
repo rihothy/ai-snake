@@ -1,5 +1,6 @@
 import { cfgs, vars } from './global.js';
 import * as tf from '@tensorflow/tfjs';
+import { buildActionMask } from './mask.js';
 
 export class DQNAgent {
     constructor() {
@@ -20,6 +21,10 @@ export class DQNAgent {
         agent.model.summary();
 
         return agent;
+    }
+
+    getMask(snake) {
+        return buildActionMask(snake, vars.snakes, cfgs.gridWidth, cfgs.gridHeight);
     }
 
     getState(snake) {
