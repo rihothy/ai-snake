@@ -35,7 +35,7 @@ trap 'rm -rf "$OUT"' EXIT
 # --- 2. convert keras h5 -> tfjs layers model ---
 echo "converting $MODEL -> tfjs ..."
 "$PY" - "$MODEL" "$OUT" <<'PY'
-import sys, types
+import os, sys, types
 # Stub optional deps that tensorflowjs imports at package level but this
 # conversion never uses.
 for name in ("tensorflow_decision_forests", "yggdrasil_decision_forests",
@@ -46,6 +46,48 @@ from tensorflowjs.converters import keras_h5_conversion as conv
 
 model = keras.models.load_model(sys.argv[1])
 conv.save_keras_model(model, sys.argv[2])
+
+# Keras 3 exports a model.json that tfjs 4.x cannot load directly
+# (batch_shape vs batch_input_shape, dict-form inbound_nodes, snake_case
+# input/output layers). Normalize it into the keras-2 style tfjs expects.
+import json as _json
+_model_json_path = os.path.join(sys.argv[2], "model.json")
+with open(_model_json_path) as _f:
+    _d = _json.load(_f)
+_config = _d["modelTopology"]["model_config"]["config"]
+
+def _tref(t):
+    if isinstance(t, dict) and t.get("class_name") == "__keras_tensor__":
+        h = t["config"]["keras_history"]
+        return [h[0], h[1], h[2], {}]
+    raise ValueError("unexpected node arg: %r" % (t,))
+
+for _layer in _config["layers"]:
+    _cfg = _layer.get("config", {})
+    if (_layer["class_name"] == "InputLayer"
+            and "batch_shape" in _cfg and "batch_input_shape" not in _cfg):
+        _cfg["batch_input_shape"] = _cfg.pop("batch_shape")
+    _nodes = _layer.get("inbound_nodes")
+    if _nodes and isinstance(_nodes[0], dict):
+        _new_nodes = []
+        for _n in _nodes:
+            _args = _n.get("args", [])
+            if isinstance(_args, dict):
+                _args = [_args]
+            _new_nodes.append([_tref(_a) for _a in _args])
+        _layer["inbound_nodes"] = _new_nodes
+
+if "input_layers" in _config and "inputLayers" not in _config:
+    _il = _config.pop("input_layers")
+    if _il and not isinstance(_il[0], list):
+        _il = [_il]
+    _config["inputLayers"] = _il
+if "output_layers" in _config and "outputLayers" not in _config:
+    _config["outputLayers"] = _config.pop("output_layers")
+
+with open(_model_json_path, "w") as _f:
+    _json.dump(_d, _f)
+print("normalized tfjs model.json for tfjs compatibility")
 print("converted:", len(model.layers), "layers,",
       len(model.get_weights()), "weight tensors")
 PY
